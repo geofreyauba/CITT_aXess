@@ -1,7 +1,7 @@
 // src/pages/Requests.tsx
 import React, { useState } from 'react';
 import { Icons } from '../components/icons';
-import Badge, { BadgeVariant } from '../components/ui/Badge';  // ← changed: import BadgeVariant too
+import Badge, { BadgeVariant } from '../components/ui/Badge';
 
 // ────────────────────────────────────────────────
 // Types
@@ -14,42 +14,110 @@ interface Room {
   status: 'available' | 'occupied' | 'requested' | 'maintenance';
   timeTaken?: string;
   returned?: string;
-  isYours?: boolean; // whether the current user requested it
+  isYours?: boolean;
+  floorLabel?: 'basement' | 'ground' | 'first' | 'second';
+  direction?: string;
+  description?: string;
 }
 
 interface RequestHistory {
   id: number;
   roomName: string;
-  roomCode: string;  // ← fixed: was 'code' in one place
+  roomCode: string;
   dateRequested: string;
   status: 'pending' | 'approved' | 'returned';
   timeTaken: string;
   returnedDate?: string;
+  requestedAtIso?: string;
+  returnedAtIso?: string;
 }
 
 // ────────────────────────────────────────────────
-// Sample Data (replace with real API data later)
+// Helpers
 // ────────────────────────────────────────────────
 
-const sampleRooms: Room[] = [
-  { id: 1, name: 'DataScien Hub', code: 'C-108', status: 'available' },
-  { id: 2, name: 'AI Innovation Lab', code: 'B-205', status: 'occupied', timeTaken: '2h 15m', returned: 'Jan 27, 2026 14:30' },
-  { id: 3, name: 'Maker Studio', code: 'A-012', status: 'requested', timeTaken: '1h', isYours: true },
-  { id: 4, name: 'Robotics Arena', code: 'D-315', status: 'available' },
-  { id: 5, name: 'IoT Workshop', code: 'E-422', status: 'maintenance' },
-  { id: 6, name: 'VR Experience Room', code: 'F-109', status: 'available' },
-  { id: 7, name: '3D Printing Zone', code: 'G-303', status: 'occupied', timeTaken: '3h 40m' },
-  { id: 8, name: 'Electronics Lab', code: 'H-210', status: 'available' },
-  { id: 9, name: 'Collaboration Lounge', code: 'I-001', status: 'requested', isYours: true },
-  { id: 10, name: 'Quantum Computing Bay', code: 'J-450', status: 'available' },
-  // ... imagine 50+ more
-];
+const formatDateTime = (iso?: string) => {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString();
+  } catch {
+    return iso;
+  }
+};
 
+const computeDuration = (startIso?: string, endIso?: string) => {
+  if (!startIso || !endIso) return '';
+  const start = new Date(startIso).getTime();
+  const end = new Date(endIso).getTime();
+  if (isNaN(start) || isNaN(end) || end <= start) return '';
+  let diff = Math.floor((end - start) / 1000); // seconds
+  const hours = Math.floor(diff / 3600); diff %= 3600;
+  const minutes = Math.floor(diff / 60); const seconds = diff % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+};
+
+// ──────��─────────────────────────────────────────
+// Data generation
+// ────────────────────────────────────────────────
+
+// We will create exactly 80 rooms split into four floor groups of 20 each.
+const floorOrder: Room['floorLabel'][] = ['basement', 'ground', 'first', 'second'];
+const wings = ['North Wing', 'East Wing', 'South Wing', 'West Wing'];
+const corners = ['Corner A', 'Corner B', 'Corner C', 'Corner D'];
+
+// Helper to create a deterministic status pattern for variety
+const statusForIndex = (i: number): Room['status'] => {
+  // produce a mix: mostly available, some occupied/requested/maintenance
+  if (i % 11 === 0) return 'maintenance';
+  if (i % 7 === 0) return 'occupied';
+  if (i % 5 === 0) return 'requested';
+  return 'available';
+};
+
+let idCounter = 1;
+const sampleRooms: Room[] = floorOrder.flatMap((floorLabel) => {
+  return Array.from({ length: 20 }).map((_, idx) => {
+    const globalIndex = idCounter++;
+    const wing = wings[(globalIndex - 1) % wings.length];
+    const corner = corners[(globalIndex - 1) % corners.length];
+    const code = `R-${(100 + globalIndex).toString().slice(-3)}`;
+    return {
+      id: globalIndex,
+      name: `${floorLabel === 'basement' ? 'Basement' : floorLabel === 'ground' ? 'Lobby' : floorLabel === 'first' ? 'First' : 'Second'} Room ${globalIndex}`,
+      code,
+      status: statusForIndex(globalIndex),
+      floorLabel,
+      direction: `${wing} — ${floorLabel === 'basement' ? 'Basement' : floorLabel === 'ground' ? 'Ground' : floorLabel === 'first' ? '1st Floor' : '2nd Floor'} — ${corner}`,
+      description: `Sector ${String.fromCharCode(65 + ((globalIndex - 1) % 6))}, near stairwell.`,
+    } as Room;
+  });
+});
+
+// Sample history (few entries to demonstrate history UI)
 const sampleHistory: RequestHistory[] = [
-  { id: 101, roomName: 'DataScien Hub', roomCode: 'C-108', dateRequested: 'Jan 26, 2026', status: 'returned', timeTaken: '2h', returnedDate: 'Jan 26, 2026 18:30' },
-  { id: 102, roomName: 'AI Innovation Lab', roomCode: 'B-205', dateRequested: 'Jan 25, 2026', status: 'pending', timeTaken: '1h 30m' },
-  { id: 103, roomName: 'Maker Studio', roomCode: 'A-012', dateRequested: 'Jan 24, 2026', status: 'approved', timeTaken: '3h', returnedDate: 'Jan 24, 2026 20:00' },
-  { id: 104, roomName: 'Robotics Arena', roomCode: 'D-315', dateRequested: 'Jan 23, 2026', status: 'returned', timeTaken: '4h 10m', returnedDate: 'Jan 23, 2026 22:45' },
+  {
+    id: 1001,
+    roomName: sampleRooms[0].name,
+    roomCode: sampleRooms[0].code,
+    dateRequested: new Date().toLocaleDateString(),
+    status: 'pending',
+    timeTaken: '',
+    requestedAtIso: new Date().toISOString(),
+  },
+  {
+    id: 1002,
+    roomName: sampleRooms[5].name,
+    roomCode: sampleRooms[5].code,
+    dateRequested: new Date(Date.now() - 1000 * 60 * 60 * 24).toLocaleDateString(),
+    status: 'returned',
+    timeTaken: '2h 15m',
+    returnedDate: new Date(Date.now() - 1000 * 60 * 60 * 20).toLocaleString(),
+    requestedAtIso: new Date(Date.now() - 1000 * 60 * 60 * 22).toISOString(),
+    returnedAtIso: new Date(Date.now() - 1000 * 60 * 60 * 20).toISOString(),
+  },
 ];
 
 // ────────────────────────────────────────────────
@@ -57,23 +125,94 @@ const sampleHistory: RequestHistory[] = [
 // ────────────────────────────────────────────────
 
 const Requests: React.FC = () => {
-  const [rooms] = useState<Room[]>(sampleRooms);
-  const [history] = useState<RequestHistory[]>(sampleHistory);
+  const [rooms, setRooms] = useState<Room[]>(sampleRooms);
+  const [history, setHistory] = useState<RequestHistory[]>(sampleHistory);
 
-  const handleRequestKey = (room: Room) => {
+  // modal state for room details
+  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const openRoom = (room: Room) => {
+    setSelectedRoom(room);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedRoom(null);
+  };
+
+  const handleRequestKey = (room: Room | null) => {
+    if (!room) return;
     if (room.status !== 'available') return;
-    alert(`Request submitted for ${room.name} (${room.code})\n\nStatus: Pending Coordinator approval`);
-    // In real app → send API request + optimistic update
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+
+    // update room status to requested & mark as current user's request
+    setRooms(prev =>
+      prev.map(r => (r.id === room.id ? { ...r, status: 'requested', isYours: true } : r))
+    );
+
+    // add to history
+    const newEntry: RequestHistory = {
+      id: Date.now(),
+      roomName: room.name,
+      roomCode: room.code,
+      dateRequested: now.toLocaleDateString(),
+      status: 'pending',
+      timeTaken: '',
+      requestedAtIso: nowIso,
+    };
+    setHistory(prev => [newEntry, ...prev]);
+
+    closeModal();
+    alert(`Request submitted for ${room.name} (${room.code})\nTime: ${now.toLocaleString()}\nStatus: Pending Coordinator approval`);
   };
 
   const handleSignOut = (historyId: number) => {
-    if (window.confirm('Mark this request as returned / signed out?')) {
-      alert(`Request #${historyId} marked as returned`);
-      // In real app → API call + update state
-    }
+    const entry = history.find(h => h.id === historyId);
+    if (!entry) return;
+    if (!window.confirm('Mark this request as returned / signed out?')) return;
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+
+    // update history entry
+    setHistory(prev =>
+      prev.map(h => {
+        if (h.id !== historyId) return h;
+        const newTimeTaken = h.requestedAtIso ? computeDuration(h.requestedAtIso, nowIso) : h.timeTaken;
+        return {
+          ...h,
+          status: 'returned',
+          returnedDate: now.toLocaleString(),
+          returnedAtIso: nowIso,
+          timeTaken: newTimeTaken || h.timeTaken,
+        };
+      })
+    );
+
+    // update associated room to available again
+    setRooms(prev =>
+      prev.map(r => {
+        if (r.code === entry.roomCode) {
+          return {
+            ...r,
+            status: 'available',
+            isYours: false,
+            returned: now.toLocaleString(),
+            timeTaken: computeDuration(entry.requestedAtIso, nowIso) || r.timeTaken,
+          };
+        }
+        return r;
+      })
+    );
+
+    alert(`Request #${historyId} marked as returned at ${now.toLocaleString()}`);
   };
 
-  // Helper to get badge variant (maps room statuses to BadgeVariant)
+  // Badge variant mappers
   const getBadgeVariant = (status: string): BadgeVariant => {
     const roomStatusMap: Record<string, BadgeVariant> = {
       available: 'available',
@@ -84,7 +223,6 @@ const Requests: React.FC = () => {
     return roomStatusMap[status as keyof typeof roomStatusMap] || 'restricted';
   };
 
-  // Helper for history status
   const getHistoryBadgeVariant = (status: RequestHistory['status']): BadgeVariant => {
     const historyStatusMap: Record<RequestHistory['status'], BadgeVariant> = {
       pending: 'pending',
@@ -94,50 +232,125 @@ const Requests: React.FC = () => {
     return historyStatusMap[status];
   };
 
+  // Group rooms by floor in specific order
+  const groupedRooms = floorOrder.map(label => ({
+    label,
+    rooms: rooms.filter(r => (r.floorLabel ?? 'ground') === label).sort((a, b) => a.name.localeCompare(b.name)),
+  }));
+
+  const floorHeading = (label?: Room['floorLabel']) =>
+    label === 'basement' ? 'Basement' :
+    label === 'ground' ? 'Ground Floor' :
+    label === 'first' ? 'First Floor' :
+    label === 'second' ? 'Second Floor' : 'Floor';
+
   return (
     <>
       <h1 className="section-title">Request Room Key</h1>
 
-      {/* Room Cards Grid */}
-      <div className="request-grid">
-        {rooms.map(room => (
-          <div key={room.id} className={`request-card ${room.status}`}>
-            <div className="card-status">
-              <Badge variant={getBadgeVariant(room.status)}>
-                {room.status === 'available' ? 'Available' :
-                 room.status === 'occupied' ? 'Occupied' :
-                 room.status === 'requested' ? 'Requested' :
+      {/* Render groups: Basement, Ground, First, Second */}
+      {groupedRooms.map(group => (
+        <section key={group.label} style={{ marginBottom: '1.5rem' }}>
+          <h2 style={{ margin: '0.5rem 0 0.75rem 0', fontSize: '1.1rem', color: 'var(--soft-blue-dark)' }}>
+            {floorHeading(group.label)} ({group.rooms.length})
+          </h2>
+
+          <div className="request-grid">
+            {group.rooms.map(room => (
+              <div
+                key={room.id}
+                className={`request-card ${room.status}`}
+                role="button"
+                onClick={() => openRoom(room)}
+                onKeyDown={(e) => { if (e.key === 'Enter') openRoom(room); }}
+                tabIndex={0}
+                aria-label={`${room.name} ${room.code} status ${room.status}`}
+              >
+                {/* badge top-left, small so it won't overlap with room title */}
+                <div
+                  className="card-status"
+                  style={{ top: 10, right: 'auto', left: 10 }}
+                  onClick={(e) => { e.stopPropagation(); }}
+                >
+                  <Badge variant={getBadgeVariant(room.status)}>
+                    {room.status === 'available' ? 'Available' :
+                     room.status === 'occupied' ? 'Occupied' :
+                     room.status === 'requested' ? 'Requested' :
+                     'Maintenance'}
+                  </Badge>
+                </div>
+
+                {/* Only the three lines visible on the card: status via badge (above), name, and code */}
+                <div style={{ width: '100%', textAlign: 'center', marginTop: '0.6rem' }}>
+                  <h3 className="room-name" style={{ margin: '0.6rem 0 0.2rem 0' }}>{room.name}</h3>
+                  <p className="room-code" style={{ margin: 0 }}>{room.code}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+
+      {/* Room Detail Modal (details only inside modal) */}
+      {isModalOpen && selectedRoom && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h2 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <span>{selectedRoom.name}</span>
+              <Badge variant={getBadgeVariant(selectedRoom.status)}>
+                {selectedRoom.status === 'available' ? 'Available' :
+                 selectedRoom.status === 'occupied' ? 'Occupied' :
+                 selectedRoom.status === 'requested' ? 'Requested' :
                  'Maintenance'}
               </Badge>
-            </div>
+            </h2>
 
-            <h3 className="room-name">{room.name}</h3>
-            <p className="room-code">{room.code}</p>
+            <p style={{ color: 'var(--gray-neutral)', marginTop: 6 }}>
+              <strong>Room Code:</strong> {selectedRoom.code}
+            </p>
 
-            {room.timeTaken && (
-              <p className="room-meta">Time Taken: {room.timeTaken}</p>
+            {/* Hidden until modal: floor, location, description */}
+            <p style={{ color: 'var(--gray-neutral)', marginTop: 6 }}>
+              <strong>Floor:</strong> {selectedRoom.floorLabel ? floorHeading(selectedRoom.floorLabel) : '—'}
+            </p>
+            <p style={{ color: 'var(--gray-neutral)', marginTop: 6 }}>
+              <strong>Location:</strong> {selectedRoom.direction ?? '—'}
+            </p>
+            {selectedRoom.description && (
+              <p style={{ color: 'var(--gray-neutral)', marginTop: 6 }}>
+                <strong>Notes:</strong> {selectedRoom.description}
+              </p>
             )}
-            {room.returned && (
-              <p className="room-meta">Returned: {room.returned}</p>
-            )}
 
-            {room.status === 'available' && (
-              <button className="request-btn" onClick={() => handleRequestKey(room)}>
-                <Icons.Key size={16} /> Request Key
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
+              <button className="cancel-btn" onClick={closeModal}>Close</button>
+
+              <button
+                className="save-btn"
+                onClick={() => handleRequestKey(selectedRoom)}
+                disabled={selectedRoom.status !== 'available'}
+                aria-disabled={selectedRoom.status !== 'available'}
+                title={selectedRoom.status !== 'available' ? 'Key not available' : 'Request key'}
+                style={{
+                  opacity: selectedRoom.status === 'available' ? 1 : 0.6,
+                  cursor: selectedRoom.status === 'available' ? 'pointer' : 'not-allowed'
+                }}
+              >
+                {selectedRoom.status === 'available' ? (
+                  <>
+                    <Icons.Key size={14} /> Request Key
+                  </>
+                ) : (
+                  selectedRoom.status === 'occupied' ? 'Not Available' : 'Unavailable'
+                )}
               </button>
-            )}
-
-            {room.status === 'requested' && room.isYours && (
-              <div className="pending-notice">
-                Your Request – Pending Approval
-              </div>
-            )}
+            </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
       {/* History Table */}
-      <div className="history-section">
+      <div className="history-section" style={{ marginTop: 32 }}>
         <h2 className="history-title">Your Request History</h2>
 
         <div className="history-table-container">
@@ -146,6 +359,7 @@ const Requests: React.FC = () => {
               <tr>
                 <th>Room</th>
                 <th>Date Requested</th>
+                <th>Requested at</th>
                 <th>Status</th>
                 <th>Time Taken</th>
                 <th>Returned</th>
@@ -157,13 +371,14 @@ const Requests: React.FC = () => {
                 <tr key={req.id}>
                   <td>{req.roomName} ({req.roomCode})</td>
                   <td>{req.dateRequested}</td>
+                  <td>{formatDateTime(req.requestedAtIso)}</td>
                   <td>
                     <Badge variant={getHistoryBadgeVariant(req.status)}>
                       {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
                     </Badge>
                   </td>
-                  <td>{req.timeTaken}</td>
-                  <td>{req.returnedDate || '—'}</td>
+                  <td>{req.timeTaken || computeDuration(req.requestedAtIso, req.returnedAtIso) || '—'}</td>
+                  <td>{req.returnedDate || formatDateTime(req.returnedAtIso) || '—'}</td>
                   <td>
                     {req.status === 'pending' && (
                       <button
@@ -178,7 +393,7 @@ const Requests: React.FC = () => {
               ))}
               {history.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="empty-table">
+                  <td colSpan={7} className="empty-table">
                     No request history yet
                   </td>
                 </tr>
