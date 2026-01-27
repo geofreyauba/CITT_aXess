@@ -14,6 +14,9 @@ import {
   FiUsers,
   FiLock,
   FiInfo,
+  FiPlus,     // ← added for Add Room button
+  FiEdit,     // ← added for edit icon
+  FiTrash,    // ← added for delete icon
 } from 'react-icons/fi';
 
 export const Icons = {
@@ -21,7 +24,7 @@ export const Icons = {
   Home: FiHome,
   Key: FiKey,
   FileText: FiFileText,
-  BarChart:   FiBarChart,
+  BarChart: FiBarChart,
   Settings: FiSettings,
   HelpCircle: FiHelpCircle,
   LogOut: FiLogOut,
@@ -36,4 +39,9 @@ export const Icons = {
 
   // Misc
   Info: FiInfo,
+
+  // Rooms page actions (new)
+  Plus: FiPlus,
+  Edit: FiEdit,
+  Trash: FiTrash,
 } as const;
