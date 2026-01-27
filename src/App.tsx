@@ -7,7 +7,10 @@ import './App.css';
 import DashboardLayout from './components/layout/DashboardLayout';
 import Dashboard from './pages/Dashboard';
 import Rooms from './pages/Rooms';
-import Requests from './pages/Requests';  // Make sure this import exists
+import Requests from './pages/Requests';
+import Reports from './pages/Reports';
+import Settings from './pages/Settings';
+import HelpSupport from './pages/HelpSupport';
 
 const App: React.FC = () => {
   return (
@@ -20,7 +23,10 @@ const App: React.FC = () => {
           {/* Pages */}
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/rooms" element={<Rooms />} />
-          <Route path="/requests" element={<Requests />} />  {/* This is the important line */}
+          <Route path="/requests" element={<Requests />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/help" element={<HelpSupport />} />
 
           {/* 404 fallback */}
           <Route path="*" element={

@@ -11,7 +11,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin' }) => {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-logo">aXess_</div>
+      <div className="sidebar-logo">aXess</div>
       <div className="sidebar-role">{role}</div>
       <nav>
         <ul className="sidebar-nav">
@@ -41,7 +41,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin' }) => {
           </li>
           <li>
             <Link
-              to="#"
+              to="/reports"            /* ← changed from "#" to "/reports" */
               className={location.pathname === '/reports' ? 'active' : ''}
             >
               <Icons.BarChart className="sidebar-icon" /> Reports
