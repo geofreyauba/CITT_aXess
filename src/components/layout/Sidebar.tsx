@@ -1,5 +1,5 @@
 // src/components/layout/Sidebar.tsx
-import { Link, useLocation } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { Icons } from '../icons';
 
 interface SidebarProps {
@@ -7,8 +7,6 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin' }) => {
-  const location = useLocation();
-
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">aXess</div>
@@ -16,60 +14,61 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin' }) => {
       <nav>
         <ul className="sidebar-nav">
           <li>
-            <Link
+            <NavLink
               to="/dashboard"
-              className={location.pathname === '/dashboard' ? 'active' : ''}
+              className={({ isActive }) => (isActive ? 'active' : '')}
             >
               <Icons.Home className="sidebar-icon" /> Dashboard
-            </Link>
+            </NavLink>
           </li>
           <li>
-            <Link
+            <NavLink
               to="/rooms"
-              className={location.pathname === '/rooms' ? 'active' : ''}
+              className={({ isActive }) => (isActive ? 'active' : '')}
             >
               <Icons.Key className="sidebar-icon" /> Rooms
-            </Link>
+            </NavLink>
           </li>
           <li>
-            <Link
+            <NavLink
               to="/requests"
-              className={location.pathname === '/requests' ? 'active' : ''}
+              className={({ isActive }) => (isActive ? 'active' : '')}
             >
               <Icons.FileText className="sidebar-icon" /> Requests
-            </Link>
+            </NavLink>
           </li>
           <li>
-            <Link
-              to="/reports"            /* ← changed from "#" to "/reports" */
-              className={location.pathname === '/reports' ? 'active' : ''}
+            <NavLink
+              to="/reports"
+              className={({ isActive }) => (isActive ? 'active' : '')}
             >
               <Icons.BarChart className="sidebar-icon" /> Reports
-            </Link>
+            </NavLink>
           </li>
           <li>
-            <Link
-              to="#"
-              className={location.pathname === '/settings' ? 'active' : ''}
+            <NavLink
+              to="/settings"
+              className={({ isActive }) => (isActive ? 'active' : '')}
             >
               <Icons.Settings className="sidebar-icon" /> Settings
-            </Link>
+            </NavLink>
           </li>
           <li>
-            <Link
-              to="#"
-              className={location.pathname === '/help' ? 'active' : ''}
+            <NavLink
+              to="/help"
+              className={({ isActive }) => (isActive ? 'active' : '')}
             >
               <Icons.HelpCircle className="sidebar-icon" /> Help & Support
-            </Link>
+            </NavLink>
           </li>
           <li>
-            <Link
-              to="#"
-              className={location.pathname === '/logout' ? 'active' : ''}
-            >
+            <a href="#" onClick={(e) => {
+              e.preventDefault();
+              // Optional: Add logout logic here later (clear token, redirect to login)
+              alert('Logout clicked – implement real logout here');
+            }}>
               <Icons.LogOut className="sidebar-icon" /> Logout
-            </Link>
+            </a>
           </li>
         </ul>
       </nav>

@@ -1,5 +1,5 @@
 // src/components/icons/index.tsx
-// Central place for all icons used in the project
+// Centralized barrel file for all Feather icons used across the aXess app
 
 import {
   FiHome,
@@ -14,13 +14,18 @@ import {
   FiUsers,
   FiLock,
   FiInfo,
-  FiPlus,     // ← added for Add Room button
-  FiEdit,     // ← added for edit icon
-  FiTrash,    // ← added for delete icon
+  FiPlus,          // Add / Create / New
+  FiEdit,          // Edit
+  FiTrash,         // Delete
+  FiSend,          // Send message / submit (used in Help & Support)
+  FiMail,          // Alternative for contact/email
+  FiAlertCircle,   // Warnings / alerts
+  FiCheckCircle,   // Success / approved
+  FiXCircle,       // Error / reject / close
 } from 'react-icons/fi';
 
 export const Icons = {
-  // Layout / Navigation
+  // Navigation / Sidebar
   Home: FiHome,
   Key: FiKey,
   FileText: FiFileText,
@@ -29,19 +34,26 @@ export const Icons = {
   HelpCircle: FiHelpCircle,
   LogOut: FiLogOut,
 
-  // Header
+  // Header / Common UI
   Search: FiSearch,
   Bell: FiBell,
 
-  // Stats
+  // Stats / Dashboard
   Users: FiUsers,
   Lock: FiLock,
 
-  // Misc
+  // Misc / Utility
   Info: FiInfo,
+  AlertCircle: FiAlertCircle,
+  CheckCircle: FiCheckCircle,
+  XCircle: FiXCircle,
 
-  // Rooms page actions (new)
+  // Rooms page actions
   Plus: FiPlus,
   Edit: FiEdit,
   Trash: FiTrash,
+
+  // Forms / Submit / Contact
+  Send: FiSend,
+  Mail: FiMail,
 } as const;
