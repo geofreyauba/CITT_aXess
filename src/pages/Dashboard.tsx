@@ -1,3 +1,5 @@
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import StatCard from '../components/dashboard/StatCard';
 import ChartCard from '../components/dashboard/ChartCard';
 import RolePreview from '../components/dashboard/RolePreview';
@@ -24,15 +26,41 @@ const lineData = [
 ];
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
+
   return (
     <>
       <h1 className="section-title">Overview</h1>
 
       <div className="stat-cards">
-        <StatCard type="users" value="129,983" label="Total Users" color="blue" />
-        <StatCard type="rooms" value="731" label="Total Rooms" color="green" />
-        <StatCard type="requests" value="393" label="Total Requests" color="orange" />
-        <StatCard type="reports" value="19,697" label="Total Reports" color="gray" />
+        <StatCard
+          type="users"
+          value="129,983"
+          label="Total Users"
+          color="blue"
+          onClick={() => navigate('/members')}
+        />
+        <StatCard
+          type="rooms"
+          value="731"
+          label="Total Rooms"
+          color="green"
+          onClick={() => navigate('/rooms')}
+        />
+        <StatCard
+          type="requests"
+          value="393"
+          label="Total Requests"
+          color="orange"
+          onClick={() => navigate('/requests')}
+        />
+        <StatCard
+          type="reports"
+          value="19,697"
+          label="Total Reports"
+          color="gray"
+          onClick={() => navigate('/reports')}
+        />
       </div>
 
       <div className="chart-cards">

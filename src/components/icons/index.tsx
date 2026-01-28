@@ -26,6 +26,10 @@ import {
   FiSun,
   FiMoon,
   FiMonitor,
+
+  // Sidebar collapse/expand toggle icons
+  FiChevronLeft,
+  FiChevronRight,
 } from 'react-icons/fi';
 
 export const Icons = {
@@ -67,4 +71,8 @@ export const Icons = {
   Sun: FiSun,
   Moon: FiMoon,
   Monitor: FiMonitor,
+
+  // Sidebar toggle icons
+  ChevronLeft: FiChevronLeft,
+  ChevronRight: FiChevronRight,
 } as const;
