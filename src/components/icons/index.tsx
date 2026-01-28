@@ -1,4 +1,3 @@
-// src/components/icons/index.tsx
 // Centralized barrel file for all Feather icons used across the aXess app
 
 import {
@@ -22,6 +21,11 @@ import {
   FiAlertCircle,   // Warnings / alerts
   FiCheckCircle,   // Success / approved
   FiXCircle,       // Error / reject / close
+
+  // Added icons to support Settings.tsx usage
+  FiSun,
+  FiMoon,
+  FiMonitor,
 } from 'react-icons/fi';
 
 export const Icons = {
@@ -56,4 +60,11 @@ export const Icons = {
   // Forms / Submit / Contact
   Send: FiSend,
   Mail: FiMail,
+
+  // Appearance / theme icons used by Settings.tsx
+  // Paintbrush re-uses FiEdit (if you prefer a different icon, replace FiEdit with another import)
+  Paintbrush: FiEdit,
+  Sun: FiSun,
+  Moon: FiMoon,
+  Monitor: FiMonitor,
 } as const;

@@ -185,20 +185,46 @@ const Reports: React.FC = () => {
         </div>
       </div>
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 12, alignItems: 'center' }}>
+      {/* Filters - nicer layout */}
+      <div
+        className="filters-card"
+        style={{
+          display: 'flex',
+          gap: 12,
+          flexWrap: 'wrap',
+          marginTop: 12,
+          alignItems: 'center',
+          padding: 12,
+          borderRadius: 10,
+          background: 'var(--card-bg, #fff)',
+          boxShadow: 'var(--shadow-soft)',
+          border: '1px solid rgba(15,23,42,0.04)'
+        }}
+      >
         <input
           className="modal-input"
           value={query}
           onChange={e => { setQuery(e.target.value); setPage(1); }}
           placeholder="Search reports, rooms, reporter..."
-          style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(15,23,42,0.06)', minWidth: 220 }}
+          style={{
+            padding: '8px 10px',
+            borderRadius: 8,
+            border: '1px solid rgba(15,23,42,0.08)',
+            minWidth: 260,
+            flex: '1 1 260px'
+          }}
         />
 
         <select
           value={statusFilter}
           onChange={e => { setStatusFilter(e.target.value as any); setPage(1); }}
-          style={{ padding: '8px', borderRadius: 8, border: '1px solid rgba(15,23,42,0.06)' }}
+          style={{
+            padding: '8px',
+            borderRadius: 8,
+            border: '1px solid rgba(15,23,42,0.08)',
+            minWidth: 160,
+            background: '#fff'
+          }}
         >
           <option value="all">All statuses</option>
           <option value="open">Open</option>
@@ -210,7 +236,13 @@ const Reports: React.FC = () => {
         <select
           value={priorityFilter}
           onChange={e => { setPriorityFilter(e.target.value as any); setPage(1); }}
-          style={{ padding: '8px', borderRadius: 8, border: '1px solid rgba(15,23,42,0.06)' }}
+          style={{
+            padding: '8px',
+            borderRadius: 8,
+            border: '1px solid rgba(15,23,42,0.08)',
+            minWidth: 140,
+            background: '#fff'
+          }}
         >
           <option value="all">All priorities</option>
           <option value="high">High</option>
@@ -218,34 +250,40 @@ const Reports: React.FC = () => {
           <option value="low">Low</option>
         </select>
 
-        <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          From
-          <input
-            type="date"
-            value={fromIso ? fromIso.slice(0,10) : ''}
-            onChange={e => { setFromIso(e.target.value ? new Date(e.target.value).toISOString() : ''); setPage(1); }}
-            style={{ padding: '6px', borderRadius: 8, border: '1px solid rgba(15,23,42,0.06)' }}
-          />
-        </label>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, color: 'var(--gray-neutral)' }}>
+            From
+            <input
+              type="date"
+              value={fromIso ? fromIso.slice(0,10) : ''}
+              onChange={e => { setFromIso(e.target.value ? new Date(e.target.value).toISOString() : ''); setPage(1); }}
+              style={{ padding: '6px', borderRadius: 8, border: '1px solid rgba(15,23,42,0.08)' }}
+              placeholder="mm/dd/yyyy"
+            />
+          </label>
 
-        <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          To
-          <input
-            type="date"
-            value={toIso ? toIso.slice(0,10) : ''}
-            onChange={e => { setToIso(e.target.value ? new Date(e.target.value).toISOString() : ''); setPage(1); }}
-            style={{ padding: '6px', borderRadius: 8, border: '1px solid rgba(15,23,42,0.06)' }}
-          />
-        </label>
-      </div>
-
-      {/* Summary row */}
-      <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ padding: '8px 10px', borderRadius: 8, background: 'white', boxShadow: 'var(--shadow-soft)' }}>
-          <strong>{reports.length}</strong> total reports
+          <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, color: 'var(--gray-neutral)' }}>
+            To
+            <input
+              type="date"
+              value={toIso ? toIso.slice(0,10) : ''}
+              onChange={e => { setToIso(e.target.value ? new Date(e.target.value).toISOString() : ''); setPage(1); }}
+              style={{ padding: '6px', borderRadius: 8, border: '1px solid rgba(15,23,42,0.08)' }}
+              placeholder="mm/dd/yyyy"
+            />
+          </label>
         </div>
-        <div style={{ padding: '8px 10px', borderRadius: 8, background: 'white', boxShadow: 'var(--shadow-soft)' }}>
-          <strong>{filtered.length}</strong> matching filters
+
+        {/* simple counts on the right */}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ padding: '8px 10px', borderRadius: 8, background: 'var(--muted-bg, #fff)', boxShadow: 'var(--shadow-soft)', border: '1px solid rgba(15,23,42,0.04)', textAlign: 'center' }}>
+            <div style={{ fontWeight: 700 }}>{reports.length}</div>
+            <div style={{ fontSize: 12, color: 'var(--gray-neutral)' }}>total reports</div>
+          </div>
+          <div style={{ padding: '8px 10px', borderRadius: 8, background: 'var(--muted-bg, #fff)', boxShadow: 'var(--shadow-soft)', border: '1px solid rgba(15,23,42,0.04)', textAlign: 'center' }}>
+            <div style={{ fontWeight: 700 }}>{filtered.length}</div>
+            <div style={{ fontSize: 12, color: 'var(--gray-neutral)' }}>matching filters</div>
+          </div>
         </div>
       </div>
 

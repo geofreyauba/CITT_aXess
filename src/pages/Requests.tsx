@@ -30,6 +30,7 @@ interface RequestHistory {
   returnedDate?: string;
   requestedAtIso?: string;
   returnedAtIso?: string;
+  carriedItems?: string; // items the user declared when requesting
 }
 
 // ────────────────────────────────────────────────
@@ -59,18 +60,15 @@ const computeDuration = (startIso?: string, endIso?: string) => {
   return `${seconds}s`;
 };
 
-// ──────��─────────────────────────────────────────
+// ────────────────────────────────────────────────
 // Data generation
 // ────────────────────────────────────────────────
 
-// We will create exactly 80 rooms split into four floor groups of 20 each.
 const floorOrder: Room['floorLabel'][] = ['basement', 'ground', 'first', 'second'];
 const wings = ['North Wing', 'East Wing', 'South Wing', 'West Wing'];
 const corners = ['Corner A', 'Corner B', 'Corner C', 'Corner D'];
 
-// Helper to create a deterministic status pattern for variety
 const statusForIndex = (i: number): Room['status'] => {
-  // produce a mix: mostly available, some occupied/requested/maintenance
   if (i % 11 === 0) return 'maintenance';
   if (i % 7 === 0) return 'occupied';
   if (i % 5 === 0) return 'requested';
@@ -106,6 +104,7 @@ const sampleHistory: RequestHistory[] = [
     status: 'pending',
     timeTaken: '',
     requestedAtIso: new Date().toISOString(),
+    carriedItems: 'Laptop, phone'
   },
   {
     id: 1002,
@@ -117,6 +116,7 @@ const sampleHistory: RequestHistory[] = [
     returnedDate: new Date(Date.now() - 1000 * 60 * 60 * 20).toLocaleString(),
     requestedAtIso: new Date(Date.now() - 1000 * 60 * 60 * 22).toISOString(),
     returnedAtIso: new Date(Date.now() - 1000 * 60 * 60 * 20).toISOString(),
+    carriedItems: 'Camera'
   },
 ];
 
@@ -132,19 +132,30 @@ const Requests: React.FC = () => {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // new: carried items text the user must fill before requesting
+  const [carriedItems, setCarriedItems] = useState<string>('');
+
   const openRoom = (room: Room) => {
     setSelectedRoom(room);
+    setCarriedItems(''); // reset when opening
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setSelectedRoom(null);
+    setCarriedItems('');
   };
 
   const handleRequestKey = (room: Room | null) => {
     if (!room) return;
     if (room.status !== 'available') return;
+
+    if (!carriedItems || !carriedItems.trim()) {
+      // require the user to declare items they're carrying
+      alert('Please list the items you will bring (e.g. laptop, phone, camera) before requesting the key.');
+      return;
+    }
 
     const now = new Date();
     const nowIso = now.toISOString();
@@ -154,7 +165,7 @@ const Requests: React.FC = () => {
       prev.map(r => (r.id === room.id ? { ...r, status: 'requested', isYours: true } : r))
     );
 
-    // add to history
+    // add to history (include carried items)
     const newEntry: RequestHistory = {
       id: Date.now(),
       roomName: room.name,
@@ -163,11 +174,12 @@ const Requests: React.FC = () => {
       status: 'pending',
       timeTaken: '',
       requestedAtIso: nowIso,
+      carriedItems: carriedItems.trim(),
     };
     setHistory(prev => [newEntry, ...prev]);
 
     closeModal();
-    alert(`Request submitted for ${room.name} (${room.code})\nTime: ${now.toLocaleString()}\nStatus: Pending Coordinator approval`);
+    alert(`Request submitted for ${room.name} (${room.code})\nDeclared items: ${carriedItems.trim()}\nStatus: Pending Coordinator approval`);
   };
 
   const handleSignOut = (historyId: number) => {
@@ -322,6 +334,21 @@ const Requests: React.FC = () => {
               </p>
             )}
 
+            {/* New: Items text area (required) */}
+            <div style={{ marginTop: 12 }}>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>Items you will bring (required)</label>
+              <textarea
+                value={carriedItems}
+                onChange={e => setCarriedItems(e.target.value)}
+                placeholder="E.g. Laptop, phone, external HDD, camera..."
+                rows={3}
+                style={{ width: '100%', padding: 8, borderRadius: 8, border: '1px solid rgba(15,23,42,0.08)' }}
+              />
+              <p style={{ margin: '6px 0 0 0', color: 'var(--gray-neutral)', fontSize: 12 }}>
+                Please declare items to help management prevent loss/theft.
+              </p>
+            </div>
+
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
               <button className="cancel-btn" onClick={closeModal}>Close</button>
 
@@ -359,6 +386,7 @@ const Requests: React.FC = () => {
               <tr>
                 <th>Room</th>
                 <th>Date Requested</th>
+                <th>Items</th>
                 <th>Requested at</th>
                 <th>Status</th>
                 <th>Time Taken</th>
@@ -371,6 +399,9 @@ const Requests: React.FC = () => {
                 <tr key={req.id}>
                   <td>{req.roomName} ({req.roomCode})</td>
                   <td>{req.dateRequested}</td>
+                  <td style={{ maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {req.carriedItems || '—'}
+                  </td>
                   <td>{formatDateTime(req.requestedAtIso)}</td>
                   <td>
                     <Badge variant={getHistoryBadgeVariant(req.status)}>
@@ -393,7 +424,7 @@ const Requests: React.FC = () => {
               ))}
               {history.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="empty-table">
+                  <td colSpan={8} className="empty-table">
                     No request history yet
                   </td>
                 </tr>
