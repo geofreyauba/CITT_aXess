@@ -1,10 +1,11 @@
+// src/pages/Dashboard.tsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import StatCard from '../components/dashboard/StatCard';
 import ChartCard from '../components/dashboard/ChartCard';
 import RolePreview from '../components/dashboard/RolePreview';
 
-// Sample data for charts
+// Sample chart data (unchanged from your original)
 const barData = [
   { name: 'Mon', value: 65 },
   { name: 'Tue', value: 59 },
@@ -28,6 +29,14 @@ const lineData = [
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
+  // These are example values — in a real app, fetch them from API or context
+  const pendingNotifications = {
+    users: 6,      // e.g. 6 new unapproved users
+    rooms: 1,      // e.g. 1 room needs attention
+    requests: 14,  // e.g. 14 pending requests
+    reports: 5,    // e.g. 5 new/unresolved reports
+  };
+
   return (
     <>
       <h1 className="section-title">Overview</h1>
@@ -38,6 +47,7 @@ const Dashboard: React.FC = () => {
           value="129,983"
           label="Total Users"
           color="blue"
+          notifications={pendingNotifications.users}
           onClick={() => navigate('/members')}
         />
         <StatCard
@@ -45,6 +55,7 @@ const Dashboard: React.FC = () => {
           value="731"
           label="Total Rooms"
           color="green"
+          notifications={pendingNotifications.rooms}
           onClick={() => navigate('/rooms')}
         />
         <StatCard
@@ -52,6 +63,7 @@ const Dashboard: React.FC = () => {
           value="393"
           label="Total Requests"
           color="orange"
+          notifications={pendingNotifications.requests}
           onClick={() => navigate('/requests')}
         />
         <StatCard
@@ -59,6 +71,7 @@ const Dashboard: React.FC = () => {
           value="19,697"
           label="Total Reports"
           color="gray"
+          notifications={pendingNotifications.reports}
           onClick={() => navigate('/reports')}
         />
       </div>

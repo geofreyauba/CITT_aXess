@@ -1977,3 +1977,73 @@ body.dark .role-badge {
   box-shadow: 0 14px 40px rgba(2,6,23,0.06);
   outline: none;
 }
+/* Notification bell + badge on stat cards */
+.stat-card .relative > .relative {
+  position: relative;
+}
+
+.stat-card .notification-bell {
+  transition: transform 0.2s ease;
+}
+
+.stat-card.clickable:hover .notification-bell {
+  transform: scale(1.15);
+}
+
+/* Badge style (already using your --red-danger) */
+.stat-card .bg-red-500 {
+  background-color: var(--red-danger);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.stat-card .text-red-500 {
+  color: var(--red-danger);
+  font-weight: 700;
+}
+
+.stat-card.clickable:hover .text-red-500 {
+  color: var(--red-danger); /* stays red, or you can make it brighter on hover if you want */
+}
+/* ────────────────────────────────────────────────
+   Notification bell + small number – top-right corner
+──────────────────────────────────────────────── */
+.stat-card {
+  position: relative; /* important – allows absolute positioning inside */
+  overflow: visible;  /* make sure bell doesn't get cut off */
+}
+
+/* Bell container – positioned top-right */
+.stat-card .notification-bell-container {
+  position: absolute;
+  top: 8px;           /* small distance from top edge */
+  right: 10px;        /* small distance from right edge */
+  display: flex;
+  align-items: center;
+  gap: 4px;           /* small gap between bell and number */
+  pointer-events: none; /* doesn't block clicks on the card */
+}
+
+/* Small bell icon */
+.stat-card .notification-bell {
+  width: 14px;
+  height: 14px;
+  opacity: 0.85;
+  color: var(--text); /* adapts to light/dark text color */
+}
+
+/* Very small number – no background, just red text */
+.stat-card .notification-number {
+  font-size: 10px;          /* very small */
+  font-weight: 700;
+  line-height: 1;
+  color: var(--red-danger); /* your red color variable */
+  min-width: 12px;
+  text-align: center;
+}
+
+/* Optional: slight hover effect on whole card */
+.stat-card.clickable:hover .notification-bell,
+.stat-card.clickable:hover .notification-number {
+  opacity: 1;
+  transform: scale(1.1);
+  transition: all 0.15s ease;
+}

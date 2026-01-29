@@ -1,3 +1,4 @@
+// src/components/dashboard/StatCard.tsx
 import React from 'react';
 import { Icons } from '../icons';
 
@@ -8,10 +9,18 @@ interface StatCardProps {
   value: string | number;
   label: string;
   color: 'blue' | 'green' | 'orange' | 'gray';
-  onClick?: () => void; // new optional click handler
+  notifications?: number;
+  onClick?: () => void;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ type, value, label, color, onClick }) => {
+const StatCard: React.FC<StatCardProps> = ({
+  type,
+  value,
+  label,
+  color,
+  notifications = 0,
+  onClick,
+}) => {
   const icons = {
     users: <Icons.Users />,
     rooms: <Icons.Lock />,
@@ -19,19 +28,35 @@ const StatCard: React.FC<StatCardProps> = ({ type, value, label, color, onClick 
     reports: <Icons.BarChart />,
   };
 
-  const clickable = typeof onClick === 'function';
+  const clickable = !!onClick;
+  const hasNotifications = notifications > 0;
 
   return (
     <div
-      className={`stat-card ${color} ${clickable ? 'clickable' : ''}`}
+      className={`stat-card ${color} ${clickable ? 'clickable relative' : 'relative'}`}
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
       onClick={clickable ? onClick : undefined}
-      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick?.(); } : undefined}
+      onKeyDown={clickable ? (e) => {
+        if (e.key === 'Enter' || e.key === ' ') onClick?.();
+      } : undefined}
       aria-pressed={clickable ? false : undefined}
     >
       <div className="stat-card-icon">{icons[type]}</div>
-      <div className="stat-card-value">{value}</div>
+
+      <div className="stat-card-value">
+        <span>{value}</span>
+      </div>
+
+      {hasNotifications && (
+        <div className="notification-bell-container">
+          <Icons.Bell className="notification-bell" size={14} />
+          <span className="notification-number">
+            {notifications > 99 ? '99+' : notifications}
+          </span>
+        </div>
+      )}
+
       <div className="stat-card-label">{label}</div>
     </div>
   );
