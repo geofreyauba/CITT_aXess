@@ -1,3 +1,4 @@
+// src/components/layout/Header.tsx
 import React from 'react';
 import { Icons } from '../icons';
 import { FaReact } from 'react-icons/fa';
@@ -6,12 +7,14 @@ interface HeaderProps {
   role?: string;
   userName?: string;
   userId?: string;
+  membership?: string;
 }
 
 const Header: React.FC<HeaderProps> = ({
   role = 'Admin',
-  userName = 'Oal Regind',
-  userId = 'REG-000123',
+  userName = 'demo',
+  userId = 'REG-DEMO-001',
+  membership = 'No Membership',
 }) => {
   return (
     <header className="header">
@@ -25,7 +28,7 @@ const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Right: welcome panel with React icon and user info (replaces search + notif + settings) */}
+      {/* Right: welcome panel with user info */}
       <div className="header-user" role="region" aria-label="User info">
         <div className="user-icon" aria-hidden>
           <FaReact />
@@ -36,6 +39,9 @@ const Header: React.FC<HeaderProps> = ({
             Welcome, <span className="user-name">{userName}</span>
           </div>
           <div className="user-id">ID: {userId}</div>
+          <div className="user-membership">
+            Membership: {membership}
+          </div>
         </div>
       </div>
     </header>

@@ -1,12 +1,7 @@
+// src/pages/Members.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icons } from '../components/icons';
-
-/**
- * Members page – shows registered users
- * - If you use demo mode (Register saved demo users to localStorage as "demoUsers"),
- *   this reads them and displays.
- * - If none found, shows a handful of sample entries so UI is visible.
- */
+import Badge from '../components/ui/Badge';
 
 interface Member {
   id?: string;
@@ -15,72 +10,111 @@ interface Member {
   phone?: string;
   accountType?: 'student' | 'non_student' | string;
   institution?: string;
+  membership?: string;
   verificationStatus?: 'pending' | 'approved' | 'rejected' | string;
 }
 
 const sampleMembers: Member[] = [
-  { id: 'REG-1001', fullName: 'Alice Mwanga', email: 'alice@example.edu', phone: '+255700111222', accountType: 'student', institution: 'MUST', verificationStatus: 'approved' },
-  { id: 'REG-1002', fullName: 'Bob Kamau', email: 'bob@example.com', phone: '+255700111333', accountType: 'non_student', institution: 'ACME Ltd', verificationStatus: 'pending' },
-  { id: 'REG-1003', fullName: 'Carol Ndege', email: 'carol@example.edu', phone: '+255700111444', accountType: 'student', institution: 'MUST', verificationStatus: 'approved' },
-  { id: 'REG-1004', fullName: 'David Maliki', email: 'david@example.edu', phone: '+255700111555', accountType: 'student', institution: 'UDSM', verificationStatus: 'rejected' },
-  { id: 'REG-1005', fullName: 'Emma Hassan', email: 'emma@example.com', phone: '+255700111666', accountType: 'non_student', institution: 'Tech Corp', verificationStatus: 'approved' },
+  { id: 'REG-1001', fullName: 'Alice Mwanga', email: 'alice@example.edu', phone: '+255700111222', accountType: 'student', institution: 'MUST', membership: 'AI Innovation Lab', verificationStatus: 'approved' },
+  { id: 'REG-1002', fullName: 'Bob Kamau', email: 'bob@example.com', phone: '+255700111333', accountType: 'non_student', institution: 'ACME Ltd', membership: 'Robotics Club', verificationStatus: 'pending' },
+  { id: 'REG-1003', fullName: 'Carol Ndege', email: 'carol@example.edu', phone: '+255700111444', accountType: 'student', institution: 'MUST', membership: 'Data Science Hub', verificationStatus: 'approved' },
+  { id: 'REG-1004', fullName: 'David Maliki', email: 'david@example.edu', phone: '+255700111555', accountType: 'student', institution: 'UDSM', membership: 'Quantum Computing Group', verificationStatus: 'rejected' },
+  { id: 'REG-1005', fullName: 'Emma Hassan', email: 'emma@example.com', phone: '+255700111666', accountType: 'non_student', institution: 'Tech Corp', membership: 'Bio Lab Team', verificationStatus: 'approved' },
 ];
 
 const Members: React.FC = () => {
   const [members, setMembers] = useState<Member[]>([]);
-  const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [accountTypeFilter, setAccountTypeFilter] = useState<string>('all');
-  const [page, setPage] = useState(1);
-  const perPage = 12;
 
+  // Load members from localStorage or fallback to sample
   useEffect(() => {
-    // Try to load demo users from localStorage (saved by demo Register)
-    try {
-      const raw = localStorage.getItem('demoUsers');
-      if (raw) {
-        const parsed = JSON.parse(raw) as any[];
-        // map to Member shape
-        const mapped = parsed.map((u, i) => ({
-          id: u.id || `REG-DEMO-${1000 + i}`,
-          fullName: u.fullName || u.full_name || u.name || 'N/A',
-          email: u.email || '—',
-          phone: u.phone || '—',
-          accountType: u.accountType || u.account_type || 'student',
-          institution: u.institution || u.institution_name || '—',
-          verificationStatus: u.verificationStatus || 'pending',
-        }));
-        setMembers(mapped);
-        return;
-      }
-    } catch {
-      // ignore parse errors
+    const savedUsers = JSON.parse(localStorage.getItem('demoUsers') || '[]');
+    if (savedUsers.length > 0) {
+      setMembers(savedUsers);
+    } else {
+      setMembers(sampleMembers);
     }
-
-    // fallback to sample members
-    setMembers(sampleMembers);
   }, []);
 
-  const filtered = useMemo(() => {
-    let result = members;
+  // Edit modal state
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [editedFullName, setEditedFullName] = useState('');
+  const [editedEmail, setEditedEmail] = useState('');
+  const [editedPhone, setEditedPhone] = useState('');
+  const [editedInstitution, setEditedInstitution] = useState('');
+  const [editedMembership, setEditedMembership] = useState('');
+  const [editedStatus, setEditedStatus] = useState('');
 
-    // Text search
-    const q = query.trim().toLowerCase();
-    if (q) {
+  const openEditModal = (member: Member) => {
+    setEditingMember(member);
+    setEditedFullName(member.fullName || '');
+    setEditedEmail(member.email || '');
+    setEditedPhone(member.phone || '');
+    setEditedInstitution(member.institution || '');
+    setEditedMembership(member.membership || '');
+    setEditedStatus(member.verificationStatus || 'pending');
+    setEditModalOpen(true);
+  };
+
+  const saveEdit = () => {
+    if (!editingMember || !editingMember.id) return;
+
+    const updatedMembers = members.map(m =>
+      m.id === editingMember.id
+        ? {
+            ...m,
+            fullName: editedFullName,
+            email: editedEmail,
+            phone: editedPhone,
+            institution: editedInstitution,
+            membership: editedMembership,
+            verificationStatus: editedStatus as Member['verificationStatus'],
+          }
+        : m
+    );
+
+    setMembers(updatedMembers);
+    localStorage.setItem('demoUsers', JSON.stringify(updatedMembers)); // Save to localStorage (demo mode)
+    setEditModalOpen(false);
+    setEditingMember(null);
+  };
+
+  // Delete functionality
+  const handleDelete = (id?: string) => {
+    if (!id) return;
+    if (!window.confirm(`Are you sure you want to delete member ${id}?`)) return;
+
+    const updatedMembers = members.filter(m => m.id !== id);
+    setMembers(updatedMembers);
+    localStorage.setItem('demoUsers', JSON.stringify(updatedMembers)); // Update localStorage
+  };
+
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [accountTypeFilter, setAccountTypeFilter] = useState('all');
+
+  const [page, setPage] = useState(1);
+  const perPage = 10;
+
+  const filtered = useMemo(() => {
+    let result = [...members];
+
+    if (query.trim()) {
+      const q = query.toLowerCase().trim();
       result = result.filter(m =>
-        (m.fullName || '').toLowerCase().includes(q) ||
-        (m.email || '').toLowerCase().includes(q) ||
-        (m.id || '').toLowerCase().includes(q) ||
-        (m.institution || '').toLowerCase().includes(q)
+        (m.fullName?.toLowerCase() || '').includes(q) ||
+        (m.email?.toLowerCase() || '').includes(q) ||
+        (m.phone?.includes(q)) ||
+        (m.id?.toLowerCase() || '').includes(q) ||
+        (m.institution?.toLowerCase() || '').includes(q) ||
+        (m.membership?.toLowerCase() || '').includes(q)
       );
     }
 
-    // Status filter
     if (statusFilter !== 'all') {
       result = result.filter(m => m.verificationStatus === statusFilter);
     }
 
-    // Account type filter
     if (accountTypeFilter !== 'all') {
       result = result.filter(m => m.accountType === accountTypeFilter);
     }
@@ -88,311 +122,221 @@ const Members: React.FC = () => {
     return result;
   }, [members, query, statusFilter, accountTypeFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const totalPages = Math.ceil(filtered.length / perPage);
   const shown = filtered.slice((page - 1) * perPage, page * perPage);
-
-  const exportCSV = () => {
-    const headers = ['ID', 'Full Name', 'Email', 'Phone', 'Account Type', 'Institution', 'Verification'];
-    const rows = filtered.map(m => [
-      m.id || '',
-      `"${(m.fullName || '').replace(/"/g, '""')}"`,
-      m.email || '',
-      m.phone || '',
-      m.accountType || '',
-      `"${(m.institution || '').replace(/"/g, '""')}"`,
-      m.verificationStatus || '',
-    ]);
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `members-${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const getStatusBadge = (status?: string) => {
-    const colors = {
-      approved: { bg: '#d1fae5', text: '#065f46', border: '#6ee7b7' },
-      pending: { bg: '#fef3c7', text: '#92400e', border: '#fcd34d' },
-      rejected: { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5' },
-    };
-    const style = colors[status as keyof typeof colors] || colors.pending;
-    
-    return (
-      <span style={{
-        display: 'inline-block',
-        padding: '4px 12px',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: 600,
-        backgroundColor: style.bg,
-        color: style.text,
-        border: `1px solid ${style.border}`,
-        textTransform: 'capitalize'
-      }}>
-        {status || 'pending'}
-      </span>
-    );
-  };
-
-  const getAccountTypeBadge = (type?: string) => {
-    const isStudent = type === 'student';
-    return (
-      <span style={{
-        display: 'inline-block',
-        padding: '4px 10px',
-        borderRadius: '8px',
-        fontSize: '11px',
-        fontWeight: 600,
-        backgroundColor: isStudent ? '#dbeafe' : '#f3e8ff',
-        color: isStudent ? '#1e40af' : '#6b21a8',
-        textTransform: 'capitalize'
-      }}>
-        {type === 'student' ? 'Student' : 'Non-Student'}
-      </span>
-    );
-  };
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 className="section-title" style={{ marginBottom: 4 }}>Members</h1>
-          <p style={{ color: 'var(--muted-text)', fontSize: 14 }}>
-            Manage and view all registered members ({filtered.length} total)
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="save-btn" onClick={exportCSV}>
-            <Icons.BarChart size={14} /> Export CSV
-          </button>
-        </div>
-      </div>
+      <h1 className="section-title">Members</h1>
 
       {/* Filters */}
-      <div style={{ 
-        marginBottom: 20, 
-        display: 'flex', 
-        gap: 12, 
-        alignItems: 'center', 
-        flexWrap: 'wrap',
-        padding: '16px',
-        backgroundColor: 'var(--card-bg)',
-        borderRadius: '8px',
-        border: '1px solid var(--border)'
-      }}>
+      <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
         <input
-          className="auth-input"
-          placeholder="Search by name, email, ID or institution..."
+          type="text"
+          placeholder="Search by name, email, ID, institution, membership..."
           value={query}
           onChange={e => { setQuery(e.target.value); setPage(1); }}
-          style={{ minWidth: 300, maxWidth: 480, flex: 1 }}
-        />
-        
-        <select
+          style={{ flex: 1, minWidth: 200 }}
           className="auth-input"
+        />
+
+        <select
           value={statusFilter}
           onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-          style={{ minWidth: 150 }}
+          className="auth-input"
+          style={{ minWidth: 160 }}
         >
-          <option value="all">All Status</option>
-          <option value="approved">Approved</option>
+          <option value="all">All Statuses</option>
           <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
         </select>
 
         <select
-          className="auth-input"
           value={accountTypeFilter}
           onChange={e => { setAccountTypeFilter(e.target.value); setPage(1); }}
-          style={{ minWidth: 150 }}
+          className="auth-input"
+          style={{ minWidth: 160 }}
         >
           <option value="all">All Types</option>
           <option value="student">Student</option>
           <option value="non_student">Non-Student</option>
         </select>
-
-        {(query || statusFilter !== 'all' || accountTypeFilter !== 'all') && (
-          <button 
-            className="cancel-btn"
-            onClick={() => {
-              setQuery('');
-              setStatusFilter('all');
-              setAccountTypeFilter('all');
-              setPage(1);
-            }}
-            style={{ whiteSpace: 'nowrap' }}
-          >
-            Clear Filters
-          </button>
-        )}
-      </div>
-
-      {/* Stats Summary */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-        gap: 16, 
-        marginBottom: 24 
-      }}>
-        <div style={{ 
-          padding: 16, 
-          backgroundColor: 'var(--card-bg)', 
-          borderRadius: 8,
-          border: '1px solid var(--border)'
-        }}>
-          <div style={{ fontSize: 13, color: 'var(--muted-text)', marginBottom: 4 }}>Total Members</div>
-          <div style={{ fontSize: 24, fontWeight: 700 }}>{members.length}</div>
-        </div>
-        <div style={{ 
-          padding: 16, 
-          backgroundColor: 'var(--card-bg)', 
-          borderRadius: 8,
-          border: '1px solid var(--border)'
-        }}>
-          <div style={{ fontSize: 13, color: 'var(--muted-text)', marginBottom: 4 }}>Approved</div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: '#059669' }}>
-            {members.filter(m => m.verificationStatus === 'approved').length}
-          </div>
-        </div>
-        <div style={{ 
-          padding: 16, 
-          backgroundColor: 'var(--card-bg)', 
-          borderRadius: 8,
-          border: '1px solid var(--border)'
-        }}>
-          <div style={{ fontSize: 13, color: 'var(--muted-text)', marginBottom: 4 }}>Pending</div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: '#d97706' }}>
-            {members.filter(m => m.verificationStatus === 'pending').length}
-          </div>
-        </div>
-        <div style={{ 
-          padding: 16, 
-          backgroundColor: 'var(--card-bg)', 
-          borderRadius: 8,
-          border: '1px solid var(--border)'
-        }}>
-          <div style={{ fontSize: 13, color: 'var(--muted-text)', marginBottom: 4 }}>Students</div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: '#2563eb' }}>
-            {members.filter(m => m.accountType === 'student').length}
-          </div>
-        </div>
       </div>
 
       {/* Table */}
-      <div style={{ marginTop: 16 }}>
-        <div className="history-table-container">
-          <table className="history-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Full Name</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Account Type</th>
-                <th>Institution</th>
-                <th>Status</th>
-                <th>Actions</th>
+      <div className="history-table-container">
+        <table className="history-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Full Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Account Type</th>
+              <th>Institution</th>
+              <th>Membership</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map(m => (
+              <tr key={m.id || Math.random()}>
+                <td>{m.id || '—'}</td>
+                <td>{m.fullName || '—'}</td>
+                <td>{m.email || '—'}</td>
+                <td>{m.phone || '—'}</td>
+                <td>{m.accountType ? m.accountType.charAt(0).toUpperCase() + m.accountType.slice(1).replace('_', ' ') : '—'}</td>
+                <td>{m.institution || '—'}</td>
+                <td>{m.membership || '—'}</td>
+                <td>
+                  <Badge
+                    variant={
+                      m.verificationStatus === 'approved'
+                        ? 'available'
+                        : m.verificationStatus === 'pending'
+                        ? 'pending'
+                        : 'restricted'
+                    }
+                  >
+                    {m.verificationStatus
+                      ? m.verificationStatus.charAt(0).toUpperCase() + m.verificationStatus.slice(1)
+                      : '—'}
+                  </Badge>
+                </td>
+                <td>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="action-btn edit" onClick={() => openEditModal(m)}>
+                      <Icons.Edit size={16} />
+                    </button>
+                    <button className="action-btn delete" onClick={() => handleDelete(m.id)}>
+                      <Icons.Trash size={16} />
+                    </button>
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {shown.map((m, idx) => (
-                <tr key={m.id || idx}>
-                  <td style={{ fontWeight: 700, color: 'var(--primary)' }}>{m.id || '—'}</td>
-                  <td style={{ color: 'var(--text)', fontWeight: 600 }}>{m.fullName}</td>
-                  <td style={{ color: 'var(--muted-text)' }}>{m.email}</td>
-                  <td style={{ color: 'var(--muted-text)' }}>{m.phone}</td>
-                  <td>{getAccountTypeBadge(m.accountType)}</td>
-                  <td>{m.institution}</td>
-                  <td>{getStatusBadge(m.verificationStatus)}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button 
-                        style={{
-                          padding: '4px 8px',
-                          fontSize: 12,
-                          border: '1px solid var(--border)',
-                          borderRadius: 4,
-                          background: 'transparent',
-                          cursor: 'pointer',
-                          color: 'var(--text)'
-                        }}
-                        onClick={() => alert(`View details for ${m.fullName}`)}
-                      >
-                        View
-                      </button>
-                      {m.verificationStatus === 'pending' && (
-                        <button 
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: 12,
-                            border: 'none',
-                            borderRadius: 4,
-                            background: '#059669',
-                            color: 'white',
-                            cursor: 'pointer'
-                          }}
-                          onClick={() => alert(`Approve ${m.fullName}`)}
-                        >
-                          Approve
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {shown.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="empty-table" style={{ padding: '40px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 16, color: 'var(--muted-text)' }}>
-                      {query || statusFilter !== 'all' || accountTypeFilter !== 'all' 
-                        ? 'No members match your filters' 
-                        : 'No members found'}
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
 
-        {/* Pagination */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          marginTop: 16,
-          padding: '12px 16px',
-          backgroundColor: 'var(--card-bg)',
-          borderRadius: 8,
-          border: '1px solid var(--border)'
-        }}>
-          <div style={{ color: 'var(--muted-text)', fontSize: 14 }}>
-            Showing {shown.length > 0 ? (page - 1) * perPage + 1 : 0} to {Math.min(page * perPage, filtered.length)} of {filtered.length} members
+            {shown.length === 0 && (
+              <tr>
+                <td colSpan={9} className="empty-table">
+                  {query || statusFilter !== 'all' || accountTypeFilter !== 'all'
+                    ? 'No matching members found'
+                    : 'No members found'}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Edit Modal */}
+      {editModalOpen && editingMember && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: 500 }}>
+            <h2>Edit Member</h2>
+
+            <label>
+              Full Name
+              <input
+                type="text"
+                value={editedFullName}
+                onChange={e => setEditedFullName(e.target.value)}
+              />
+            </label>
+
+            <label>
+              Email
+              <input
+                type="email"
+                value={editedEmail}
+                onChange={e => setEditedEmail(e.target.value)}
+              />
+            </label>
+
+            <label>
+              Phone
+              <input
+                type="tel"
+                value={editedPhone}
+                onChange={e => setEditedPhone(e.target.value)}
+              />
+            </label>
+
+            <label>
+              Institution
+              <input
+                type="text"
+                value={editedInstitution}
+                onChange={e => setEditedInstitution(e.target.value)}
+              />
+            </label>
+
+            <label>
+              Membership / Hub / Club
+              <input
+                type="text"
+                value={editedMembership}
+                onChange={e => setEditedMembership(e.target.value)}
+              />
+            </label>
+
+            <label>
+              Status
+              <select value={editedStatus} onChange={e => setEditedStatus(e.target.value)}>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </label>
+
+            <div className="modal-buttons" style={{ marginTop: 20 }}>
+              <button className="cancel-btn" onClick={() => setEditModalOpen(false)}>
+                Cancel
+              </button>
+              <button className="save-btn" onClick={saveEdit}>
+                Save Changes
+              </button>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button 
-              className="cancel-btn" 
-              onClick={() => setPage(p => Math.max(1, p - 1))} 
-              disabled={page === 1}
-              style={{ opacity: page === 1 ? 0.5 : 1 }}
-            >
-              Previous
-            </button>
-            <span style={{ color: 'var(--text)', fontSize: 14, fontWeight: 600 }}>
-              Page {page} of {totalPages}
-            </span>
-            <button 
-              className="save-btn" 
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))} 
-              disabled={page === totalPages}
-              style={{ opacity: page === totalPages ? 0.5 : 1 }}
-            >
-              Next
-            </button>
-          </div>
+        </div>
+      )}
+
+      {/* Pagination */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 16,
+        padding: '12px 16px',
+        backgroundColor: 'var(--card-bg)',
+        borderRadius: 8,
+        border: '1px solid var(--border)'
+      }}>
+        <div style={{ color: 'var(--muted-text)', fontSize: 14 }}>
+          Showing {shown.length > 0 ? (page - 1) * perPage + 1 : 0} to {Math.min(page * perPage, filtered.length)} of {filtered.length} members
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            className="cancel-btn"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+            style={{ opacity: page === 1 ? 0.5 : 1 }}
+          >
+            Previous
+          </button>
+          <span style={{ color: 'var(--text)', fontSize: 14, fontWeight: 600 }}>
+            Page {page} of {totalPages}
+          </span>
+          <button
+            className="save-btn"
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            style={{ opacity: page === totalPages ? 0.5 : 1 }}
+          >
+            Next
+          </button>
         </div>
       </div>
     </>
