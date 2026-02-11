@@ -2047,3 +2047,185 @@ body.dark .role-badge {
   transform: scale(1.1);
   transition: all 0.15s ease;
 }
+/* ====================== Updated Contact Support ====================== */
+
+.contact-card .support-intro {
+  margin-bottom: 2rem;
+  color: var(--muted-text);
+  line-height: 1.65;
+  font-size: 0.98rem;
+}
+
+.contact-methods {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  margin-bottom: 2rem;
+}
+
+.contact-method {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.1rem;
+  padding: 1.25rem 1.4rem;
+  background: var(--white-glass-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.contact-method:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
+}
+
+.contact-method svg {
+  flex-shrink: 0;
+  color: var(--soft-blue);
+  margin-top: 2px;
+}
+
+.contact-details strong {
+  display: block;
+  color: var(--soft-blue-dark);
+  font-size: 1.05rem;
+  margin-bottom: 0.25rem;
+}
+
+.contact-details p {
+  margin: 0;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.contact-details small {
+  color: var(--muted-text);
+  font-size: 0.82rem;
+}
+
+/* Quick Tips / Best Practices */
+.quick-tips {
+  background: var(--gray-light);
+  border-radius: 14px;
+  padding: 1.5rem;
+  border: 1px solid var(--glass-border);
+}
+
+.quick-tips h3 {
+  margin: 0 0 1rem 0;
+  color: var(--soft-blue-dark);
+  font-size: 1.15rem;
+}
+
+.quick-tips ul {
+  padding-left: 1.3rem;
+  margin: 0;
+}
+
+.quick-tips li {
+  margin-bottom: 0.75rem;
+  color: var(--muted-text);
+  line-height: 1.55;
+}
+
+.quick-tips li:last-child {
+  margin-bottom: 0;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .help-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* ====================== Reports Page - Key Requests & Analytics ====================== */
+
+.reports-grid {
+  display: grid;
+  grid-template-columns: 2.8fr 1.2fr;
+  gap: 2rem;
+  margin-top: 1rem;
+}
+
+.analytics-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Top Rooms List */
+.top-rooms-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+
+.room-usage-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.room-name {
+  font-weight: 600;
+  color: var(--soft-blue-dark);
+  font-size: 0.95rem;
+}
+
+.usage-bar-container {
+  height: 10px;
+  background: var(--gray-light);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.usage-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--soft-blue), #a78bfa);
+  border-radius: 9999px;
+  transition: width 0.4s ease;
+}
+
+.room-count {
+  font-size: 0.82rem;
+  color: var(--muted-text);
+  text-align: right;
+}
+
+/* Make filters consistent */
+.filters-card {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 14px;
+  margin-bottom: 1.5rem;
+}
+
+.filters-card input,
+.filters-card select {
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+  background: var(--surface);
+  color: var(--text);
+  min-width: 220px;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .reports-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .filters-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 768px) {
+  .stat-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

@@ -16,8 +16,8 @@ import {
   FiPlus,          // Add / Create / New
   FiEdit,          // Edit
   FiTrash,         // Delete
-  FiSend,          // Send message / submit (used in Help & Support)
-  FiMail,          // Alternative for contact/email
+  FiSend,          // Send message / submit
+  FiMail,          // Email / contact
   FiAlertCircle,   // Warnings / alerts
   FiCheckCircle,   // Success / approved
   FiXCircle,       // Error / reject / close
@@ -30,6 +30,16 @@ import {
   // Sidebar collapse/expand toggle icons
   FiChevronLeft,
   FiChevronRight,
+
+  // Help & Support page
+  FiPhone,
+  FiMapPin,
+
+  // Reports page specific icons
+  FiCalendar,
+  FiClock,
+  FiUser,
+  FiFilter,
 } from 'react-icons/fi';
 
 export const Icons = {
@@ -66,7 +76,6 @@ export const Icons = {
   Mail: FiMail,
 
   // Appearance / theme icons used by Settings.tsx
-  // Paintbrush re-uses FiEdit (if you prefer a different icon, replace FiEdit with another import)
   Paintbrush: FiEdit,
   Sun: FiSun,
   Moon: FiMoon,
@@ -75,4 +84,14 @@ export const Icons = {
   // Sidebar toggle icons
   ChevronLeft: FiChevronLeft,
   ChevronRight: FiChevronRight,
+
+  // Help & Support specific
+  Phone: FiPhone,
+  MapPin: FiMapPin,
+
+  // Reports page specific
+  Calendar: FiCalendar,
+  Clock: FiClock,
+  User: FiUser,
+  Filter: FiFilter,
 } as const;

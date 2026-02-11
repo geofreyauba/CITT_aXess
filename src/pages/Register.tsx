@@ -1,197 +1,373 @@
-// src/pages/Requests.tsx
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Icons } from '../components/icons';
-import Badge, { BadgeVariant } from '../components/ui/Badge';
 
-// ────────────────────────────────────────────────
-// Types
-// ────────────────────────────────────────────────
+type AccountType = 'student' | 'non_student' | '';
 
-interface Room {
-  id: number;
-  name: string;
-  code: string;
-  status: 'available' | 'occupied' | 'requested' | 'maintenance';
-  timeTaken?: string;
-  returned?: string;
-  isYours?: boolean;
-  floorLabel?: 'basement' | 'ground' | 'first' | 'second';
-  direction?: string;
-  description?: string;
-}
+const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
+const isPdf = (f?: File | null) => !!f && (f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
 
-interface RequestHistory {
-  id: number;
-  roomName: string;
-  roomCode: string;
-  dateRequested: string;
-  status: 'pending' | 'approved' | 'returned';
-  timeTaken: string;
-  returnedDate?: string;
-  requestedAtIso?: string;
-  returnedAtIso?: string;
-  carriedItems?: string;
-  membership?: string; // added
-}
+/**
+ * Demo-friendly Register page.
+ * - If "Use API" is unchecked (default), registration is stored in localStorage demo users,
+ *   and the user is automatically logged in (no backend required).
+ * - When connecting backend, toggle "Use API" to post to your endpoint.
+ */
 
-// ────────────────────────────────────────────────
-// Helpers
-// ────────────────────────────────────────────────
+const Register: React.FC = () => {
+  const [useApi, setUseApi] = useState(false);
+  const [accountType, setAccountType] = useState<AccountType>('');
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
 
-const formatDateTime = (iso?: string) => {
-  if (!iso) return '—';
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString();
-  } catch {
-    return iso;
-  }
-};
+  // Student
+  const [institution, setInstitution] = useState('');
+  const [campus, setCampus] = useState('');
+  const [regNumber, setRegNumber] = useState('');
+  const [program, setProgram] = useState('');
+  const [level, setLevel] = useState('');
+  const [yearOfStudy, setYearOfStudy] = useState('');
+  const [studentIdFile, setStudentIdFile] = useState<File | null>(null);
 
-const computeDuration = (startIso?: string, endIso?: string) => {
-  if (!startIso || !endIso) return '';
-  const start = new Date(startIso).getTime();
-  const end = new Date(endIso).getTime();
-  if (isNaN(start) || isNaN(end) || end <= start) return '';
-  let diff = Math.floor((end - start) / 1000); // seconds
-  const hours = Math.floor(diff / 3600); diff %= 3600;
-  const minutes = Math.floor(diff / 60); const seconds = diff % 60;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
-};
+  // Non-student
+  const [educationBackground, setEducationBackground] = useState('');
+  const [highestEducation, setHighestEducation] = useState('');
+  const [nsInstitution, setNsInstitution] = useState('');
+  const [nsProgram, setNsProgram] = useState('');
+  const [yearCompleted, setYearCompleted] = useState('');
+  const [region, setRegion] = useState('');
+  const [district, setDistrict] = useState('');
+  const [ward, setWard] = useState('');
+  const [nationalIdFile, setNationalIdFile] = useState<File | null>(null);
+  const [educationProofFile, setEducationProofFile] = useState<File | null>(null);
 
-const getHistoryBadgeVariant = (status: RequestHistory['status']): BadgeVariant => {
-  switch (status) {
-    case 'pending':   return 'pending';
-    case 'approved':  return 'approved';
-    case 'returned':  return 'returned';
-    default:          return 'restricted';
-  }
-};
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-// ────────────────────────────────────────────────
-// Component
-// ────────────────────────────────────────────────
+  const levelOptions = useMemo(() => ['Certificate','Diploma','Bachelor','Master','PhD'], []);
+  const highestOptions = useMemo(() => ['Certificate','Diploma','Bachelor','Master','PhD','Other'], []);
 
-const Requests: React.FC = () => {
-  // Sample request history (replace with real data/API later)
-  const [history, setHistory] = useState<RequestHistory[]>([
-    {
-      id: 1,
-      roomName: 'AI Innovation Lab',
-      roomCode: 'B-205',
-      dateRequested: '2026-01-28',
-      status: 'pending',
-      timeTaken: '—',
-      requestedAtIso: new Date().toISOString(),
-      carriedItems: 'Laptop, Notebook, Charger',
-      membership: 'AI Innovation Lab',
-    },
-    {
-      id: 2,
-      roomName: 'Maker Studio',
-      roomCode: 'A-012',
-      dateRequested: '2026-01-25',
-      status: 'approved',
-      timeTaken: '2h 45m',
-      returnedDate: '2026-01-25',
-      requestedAtIso: new Date(Date.now() - 86400000 * 3).toISOString(),
-      returnedAtIso: new Date(Date.now() - 86400000 * 2).toISOString(),
-      carriedItems: '3D Printer Filament, Safety Glasses',
-      membership: 'Maker Studio',
-    },
-    {
-      id: 3,
-      roomName: 'Robotics Arena',
-      roomCode: 'D-315',
-      dateRequested: '2026-01-20',
-      status: 'returned',
-      timeTaken: '4h 10m',
-      returnedDate: '2026-01-20',
-      requestedAtIso: new Date(Date.now() - 86400000 * 9).toISOString(),
-      returnedAtIso: new Date(Date.now() - 86400000 * 8).toISOString(),
-      carriedItems: 'Robot chassis, Batteries',
-      membership: 'Robotics Club',
-    },
-  ]);
+  const clearMessages = () => { setError(null); setSuccess(null); };
 
-  const handleSignOut = (id: number) => {
-    if (window.confirm('Confirm sign out of this room?')) {
-      setHistory(prev =>
-        prev.map(r =>
-          r.id === id
-            ? { ...r, status: 'returned', returnedDate: new Date().toLocaleDateString(), returnedAtIso: new Date().toISOString() }
-            : r
-        )
-      );
+  const validate = () => {
+    clearMessages();
+    if (accountType !== 'student' && accountType !== 'non_student') { setError('Select Student or Non-Student'); return false; }
+    if (!fullName.trim()) { setError('Full name required'); return false; }
+    if (!email.trim()) { setError('Email required'); return false; }
+    if (!phone.trim()) { setError('Phone required'); return false; }
+    if (!password || password.length < 6) { setError('Password must be at least 6 chars for demo'); return false; }
+
+    if (accountType === 'student') {
+      if (!institution.trim()) { setError('Institution required'); return false; }
+      if (!regNumber.trim()) { setError('Registration number required'); return false; }
+      if (!program.trim()) { setError('Program required'); return false; }
+      if (!level) { setError('Level required'); return false; }
+      if (!yearOfStudy) { setError('Year of study required'); return false; }
+      if (!studentIdFile) { setError('Upload Student ID PDF'); return false; }
+      if (!isPdf(studentIdFile)) { setError('Student ID must be PDF'); return false; }
+      if (studentIdFile.size > MAX_FILE_BYTES) { setError('Student ID > 5MB'); return false; }
+    }
+
+    if (accountType === 'non_student') {
+      if (!educationBackground.trim()) { setError('Education background required'); return false; }
+      if (!highestEducation) { setError('Highest education required'); return false; }
+      if (!nsInstitution.trim()) { setError('Institution required'); return false; }
+      if (!nsProgram.trim()) { setError('Program required'); return false; }
+      if (!region.trim()) { setError('Region required'); return false; }
+      if (!district.trim()) { setError('District required'); return false; }
+      if (!nationalIdFile) { setError('Upload National ID PDF'); return false; }
+      if (!isPdf(nationalIdFile)) { setError('National ID must be PDF'); return false; }
+      if (nationalIdFile.size > MAX_FILE_BYTES) { setError('National ID > 5MB'); return false; }
+      if (!educationProofFile) { setError('Upload education proof PDF'); return false; }
+      if (!isPdf(educationProofFile)) { setError('Education proof must be PDF'); return false; }
+      if (educationProofFile.size > MAX_FILE_BYTES) { setError('Education proof > 5MB'); return false; }
+    }
+
+    return true;
+  };
+
+  // Demo user storage helpers
+  const saveDemoUserAndLogin = (user: any) => {
+    const usersJson = localStorage.getItem('demoUsers');
+    const users = usersJson ? JSON.parse(usersJson) : [];
+    users.push(user);
+    localStorage.setItem('demoUsers', JSON.stringify(users));
+    // set auth token + currentUser
+    localStorage.setItem('authToken', `demo-${Date.now()}`);
+    localStorage.setItem('currentUser', JSON.stringify({ name: user.fullName, email: user.email, id: `REG-DEMO-${Date.now()}` }));
+    window.location.href = '/dashboard';
+  };
+
+  const handleFile = (setter: (f: File | null) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+    setter(f);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    if (!validate()) return;
+
+    if (!useApi) {
+      // demo flow: save and login locally
+      const user = {
+        accountType,
+        fullName,
+        email,
+        phone,
+        institution,
+        campus,
+        regNumber,
+        program,
+        level,
+        yearOfStudy,
+        educationBackground,
+        highestEducation,
+        nsInstitution,
+        nsProgram,
+        yearCompleted,
+        region,
+        district,
+        ward,
+      };
+      saveDemoUserAndLogin(user);
+      return;
+    }
+
+    // Use API when toggle enabled
+    setLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append('account_type', accountType);
+      fd.append('full_name', fullName.trim());
+      fd.append('email', email.trim());
+      fd.append('phone', phone.trim());
+      fd.append('password', password);
+
+      if (accountType === 'student') {
+        fd.append('institution', institution.trim());
+        fd.append('campus', campus.trim());
+        fd.append('registration_number', regNumber.trim());
+        fd.append('program', program.trim());
+        fd.append('level', level);
+        fd.append('year_of_study', yearOfStudy);
+        if (studentIdFile) fd.append('student_id_file', studentIdFile, studentIdFile.name);
+      } else {
+        fd.append('education_background', educationBackground.trim());
+        fd.append('highest_education', highestEducation);
+        fd.append('institution', nsInstitution.trim());
+        fd.append('program', nsProgram.trim());
+        fd.append('year_completed', yearCompleted.trim());
+        fd.append('region', region.trim());
+        fd.append('district', district.trim());
+        fd.append('ward', ward.trim());
+        if (nationalIdFile) fd.append('national_id_file', nationalIdFile, nationalIdFile.name);
+        if (educationProofFile) fd.append('education_proof_file', educationProofFile, educationProofFile.name);
+      }
+
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        body: fd,
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message || 'Registration failed');
+        return;
+      }
+
+      setSuccess('Registration successful. Redirecting to login...');
+      setTimeout(() => (window.location.href = '/login'), 1200);
+    } catch (err) {
+      console.error(err);
+      setError('Network error — could not reach API.');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <>
-      <h1 className="section-title">My Requests & History</h1>
+    <div className="auth-page">
+      <div className="auth-card big">
+        <h1 className="auth-title">aXess Dynamic Registration System</h1>
+        <p className="auth-sub">Please select account type to continue</p>
 
-      <div className="history-section">
-        <h2 className="history-title">Your Request History</h2>
-
-        <div className="history-table-container">
-          <table className="history-table">
-            <thead>
-              <tr>
-                <th>Room</th>
-                <th>Date Requested</th>
-                <th>Items</th>
-                <th>Requested At</th>
-                <th>Status</th>
-                <th>Time Taken</th>
-                <th>Returned</th>
-                <th>Membership</th>           {/* added */}
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {history.map(req => (
-                <tr key={req.id}>
-                  <td>{req.roomName} ({req.roomCode})</td>
-                  <td>{req.dateRequested}</td>
-                  <td style={{ maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {req.carriedItems || '—'}
-                  </td>
-                  <td>{formatDateTime(req.requestedAtIso)}</td>
-                  <td>
-                    <Badge variant={getHistoryBadgeVariant(req.status)}>
-                      {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
-                    </Badge>
-                  </td>
-                  <td>{req.timeTaken || computeDuration(req.requestedAtIso, req.returnedAtIso) || '—'}</td>
-                  <td>{req.returnedDate || formatDateTime(req.returnedAtIso) || '—'}</td>
-                  <td>{req.membership || '—'}</td> {/* added */}
-                  <td>
-                    {req.status === 'pending' && (
-                      <button
-                        className="signout-btn"
-                        onClick={() => handleSignOut(req.id)}
-                      >
-                        Sign Out
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {history.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="empty-table">
-                    No request history yet
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input type="checkbox" checked={useApi} onChange={e => setUseApi(e.target.checked)} />
+            Use API (uncheck to use local/demo)
+          </label>
+          <div style={{ marginLeft: 'auto', color: 'var(--muted-text)', fontSize: 13 }}>
+            Demo files must be PDF (you can still select files; they will not be uploaded in demo mode)
+          </div>
         </div>
+
+        <form onSubmit={handleSubmit} className="auth-form" encType="multipart/form-data" noValidate>
+          {error && <div className="form-error" role="alert">{error}</div>}
+          {success && <div className="form-success">{success}</div>}
+
+          <fieldset className="form-group" aria-required>
+            <legend className="form-legend">Account Type</legend>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <label className={`radio-card ${accountType === 'student' ? 'active' : ''}`}>
+                <input type="radio" name="accountType" value="student" checked={accountType === 'student'} onChange={() => setAccountType('student')} />
+                <div><strong>Student</strong></div>
+                <div className="muted">Register with student credentials</div>
+              </label>
+
+              <label className={`radio-card ${accountType === 'non_student' ? 'active' : ''}`}>
+                <input type="radio" name="accountType" value="non_student" checked={accountType === 'non_student'} onChange={() => setAccountType('non_student')} />
+                <div><strong>Non-Student</strong></div>
+                <div className="muted">Industry, guest, staff or other</div>
+              </label>
+            </div>
+          </fieldset>
+
+          <div className="form-grid">
+            <label className="form-label">
+              Full Name
+              <input className="auth-input" value={fullName} onChange={e => setFullName(e.target.value)} required />
+            </label>
+
+            <label className="form-label">
+              Email
+              <input type="email" className="auth-input" value={email} onChange={e => setEmail(e.target.value)} required />
+            </label>
+
+            <label className="form-label">
+              Phone Number
+              <input className="auth-input" value={phone} onChange={e => setPhone(e.target.value)} required />
+            </label>
+
+            <label className="form-label">
+              Password
+              <input type="password" className="auth-input" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Min 6 characters for demo" />
+            </label>
+          </div>
+
+          {/* Student fields */}
+          {accountType === 'student' && (
+            <>
+              <h3 className="section-sub">Student details</h3>
+              <div className="form-grid">
+                <label className="form-label">
+                  Institution Name
+                  <input className="auth-input" value={institution} onChange={e => setInstitution(e.target.value)} />
+                </label>
+
+                <label className="form-label">
+                  Campus (optional)
+                  <input className="auth-input" value={campus} onChange={e => setCampus(e.target.value)} />
+                </label>
+
+                <label className="form-label">
+                  Registration Number / Student ID
+                  <input className="auth-input" value={regNumber} onChange={e => setRegNumber(e.target.value)} />
+                </label>
+
+                <label className="form-label">
+                  Program / Course
+                  <input className="auth-input" value={program} onChange={e => setProgram(e.target.value)} />
+                </label>
+
+                <label className="form-label">
+                  Level of Study
+                  <select className="auth-input" value={level} onChange={e => setLevel(e.target.value)}>
+                    <option value="">Select</option>
+                    {levelOptions.map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                </label>
+
+                <label className="form-label">
+                  Year of Study
+                  <input type="number" min={1} max={10} className="auth-input" value={yearOfStudy} onChange={e => setYearOfStudy(e.target.value)} />
+                </label>
+
+                <label className="form-label">
+                  Upload Student ID (PDF only, max 5MB)
+                  <input type="file" accept="application/pdf" onChange={handleFile(setStudentIdFile)} />
+                  <div className="form-hint">Used for student verification only. We will not share your document.</div>
+                </label>
+              </div>
+            </>
+          )}
+
+          {/* Non-student fields */}
+          {accountType === 'non_student' && (
+            <>
+              <h3 className="section-sub">Non-student details</h3>
+              <div className="form-grid">
+                <label className="form-label">
+                  Education Background (short)
+                  <input className="auth-input" value={educationBackground} onChange={e => setEducationBackground(e.target.value)} />
+                </label>
+
+                <label className="form-label">
+                  Highest Level of Education
+                  <select className="auth-input" value={highestEducation} onChange={e => setHighestEducation(e.target.value)}>
+                    <option value="">Select</option>
+                    {highestOptions.map(v => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                </label>
+
+                <label className="form-label">
+                  Institution Name
+                  <input className="auth-input" value={nsInstitution} onChange={e => setNsInstitution(e.target.value)} />
+                </label>
+
+                <label className="form-label">
+                  Program / Field of Study
+                  <input className="auth-input" value={nsProgram} onChange={e => setNsProgram(e.target.value)} />
+                </label>
+
+                <label className="form-label">
+                  Year Completed or "Currently Studying"
+                  <input className="auth-input" value={yearCompleted} onChange={e => setYearCompleted(e.target.value)} />
+                </label>
+
+                <label className="form-label">
+                  Region
+                  <input className="auth-input" value={region} onChange={e => setRegion(e.target.value)} />
+                </label>
+
+                <label className="form-label">
+                  District
+                  <input className="auth-input" value={district} onChange={e => setDistrict(e.target.value)} />
+                </label>
+
+                <label className="form-label">
+                  Ward (optional)
+                  <input className="auth-input" value={ward} onChange={e => setWard(e.target.value)} />
+                </label>
+
+                <label className="form-label">
+                  Upload National ID / Passport (PDF only, max 5MB)
+                  <input type="file" accept="application/pdf" onChange={handleFile(setNationalIdFile)} />
+                </label>
+
+                <label className="form-label">
+                  Upload Education Proof (PDF only, max 5MB)
+                  <input type="file" accept="application/pdf" onChange={handleFile(setEducationProofFile)} />
+                </label>
+              </div>
+            </>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button type="submit" className="save-btn" disabled={loading}>
+              {loading ? 'Submitting...' : (<><Icons.Users size={14} /> Register</>)}
+            </button>
+
+            <button type="button" className="cancel-btn" onClick={() => (window.location.href = '/login')}>Back to login</button>
+          </div>
+        </form>
       </div>
-    </>
+    </div>
   );
 };
 
-export default Requests;
+export default Register;
