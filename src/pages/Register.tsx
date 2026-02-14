@@ -10,7 +10,7 @@ const Register: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ─── Basic fields ───
+  // Basic fields
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -18,28 +18,28 @@ const Register: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [accountType, setAccountType] = useState<'student' | 'non_student'>('student');
   const [institution, setInstitution] = useState('MUST');
-  const [membership, setMembership] = useState('');
+  const [membership, setMembership] = useState('');  // ← can be empty
 
-  // ─── Student fields ───
+  // Student fields
   const [campus, setCampus] = useState('');
   const [regNumber, setRegNumber] = useState('');
   const [program, setProgram] = useState('');
   const [level, setLevel] = useState('');
   const [yearOfStudy, setYearOfStudy] = useState('');
 
-  // ─── Non-student fields ───
+  // Non-student fields
   const [educationBackground, setEducationBackground] = useState('');
 
-  // ─── Files ───
+  // Files
   const [studentIdFile, setStudentIdFile] = useState<File | null>(null);
   const [nationalIdFile, setNationalIdFile] = useState<File | null>(null);
   const [residenceProofFile, setResidenceProofFile] = useState<File | null>(null);
   const [centerFormFile, setCenterFormFile] = useState<File | null>(null);
 
-  // ─── Password visibility & strength ───
+  // Password visibility & strength
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [showRequirements, setShowRequirements] = useState(false);   // ← NEW
+  const [showRequirements, setShowRequirements] = useState(false);
 
   const [requirements, setRequirements] = useState({
     minLength: false,
@@ -49,9 +49,8 @@ const Register: React.FC = () => {
     hasSpecial: false,
   });
 
-  // Live password validation + show/hide requirements
   useEffect(() => {
-    setShowRequirements(password.length > 0);   // ← Only show when typing starts
+    setShowRequirements(password.length > 0);
 
     const check = {
       minLength: password.length >= 8,
@@ -70,8 +69,15 @@ const Register: React.FC = () => {
     e.preventDefault();
     setError(null);
 
-    if (password !== confirmPassword) return setError('Passwords do not match');
-    if (!isPasswordStrong) return setError('Password does not meet strength requirements');
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (!isPasswordStrong) {
+      setError('Password does not meet strength requirements');
+      return;
+    }
 
     setLoading(true);
 
@@ -83,7 +89,8 @@ const Register: React.FC = () => {
     formData.append('password', password);
     formData.append('accountType', accountType);
     formData.append('institution', institution);
-    formData.append('membership', membership);
+    // Fix: always send membership (default to 'None' if empty)
+    formData.append('membership', membership.trim() || 'None');
 
     if (accountType === 'student') {
       formData.append('campus', campus);
@@ -215,6 +222,12 @@ const Register: React.FC = () => {
             <option value="student">Student</option>
             <option value="non_student">Non-Student / Professional</option>
           </select>
+
+          <label>Institution</label>
+          <input type="text" className="auth-input" value={institution} onChange={e => setInstitution(e.target.value)} />
+
+          <label>Membership Type</label>
+          <input type="text" className="auth-input" value={membership} onChange={e => setMembership(e.target.value)} />
 
           {accountType === 'student' && (
             <div className="conditional-fields">

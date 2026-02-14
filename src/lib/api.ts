@@ -1,5 +1,5 @@
 // src/lib/api.ts
-const API_BASE = '/api';   // ← Uses Vite proxy (port 5173 → 5000)
+const API_BASE = '/api';   // Uses Vite proxy (port 5173 → backend port)
 
 // Helper to get JWT from localStorage
 const getToken = (): string | null => {
@@ -10,7 +10,7 @@ const getToken = (): string | null => {
   }
 };
 
-// Core fetch helper
+// Core fetch helper with logging for debugging
 async function fetchAPI(endpoint: string, options: RequestInit = {}) {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -25,18 +25,32 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
     Object.assign(headers, options.headers);
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
+  const url = `${API_BASE}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+
+  console.log(`→ Fetching ${options.method || 'GET'} ${url}`);
+  if (token) console.log('→ With token:', token.substring(0, 10) + '...');
+
+  const response = await fetch(url, {
     ...options,
     headers,
     credentials: 'include',
   });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.msg || errorData.message || `HTTP ${response.status}`);
+  let data;
+  try {
+    data = await response.json();
+  } catch (e) {
+    const text = await response.text().catch(() => 'No response body');
+    console.warn('Non-JSON response:', text);
+    throw new Error(`Server returned invalid JSON: ${text}`);
   }
 
-  return response.json();
+  if (!response.ok) {
+    console.warn(`Request failed: ${response.status} ${response.statusText}`);
+    throw new Error(data?.msg || data?.message || `HTTP ${response.status}`);
+  }
+
+  return data;
 }
 
 // =============================================
@@ -51,13 +65,11 @@ export const authAPI = {
   },
 
   async register(formData: FormData) {
-    const token = getToken();
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-
+    // FormData → do NOT set Content-Type header
     const response = await fetch(`${API_BASE}/auth/register`, {
       method: 'POST',
-      headers,
       body: formData,
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -86,6 +98,10 @@ export const membersAPI = {
     return fetchAPI('/members');
   },
 
+  async getById(id: string) {
+    return fetchAPI(`/members/${id}`);
+  },
+
   async approve(id: string) {
     return fetchAPI(`/members/${id}/approve`, { method: 'PATCH' });
   },
@@ -94,7 +110,7 @@ export const membersAPI = {
     return fetchAPI(`/members/${id}/reject`, { method: 'PATCH' });
   },
 
-  async delete(id: string) {           // ← This was missing → fixed the error in Members.tsx
+  async delete(id: string) {
     return fetchAPI(`/members/${id}`, { method: 'DELETE' });
   },
 
@@ -104,6 +120,14 @@ export const membersAPI = {
       body: JSON.stringify(data),
     });
   },
+
+  // Not needed as separate method since you use direct fetch in handleAddMember
+  // async createManual(payload: any) {
+  //   return fetchAPI('/members/manual', {
+  //     method: 'POST',
+  //     body: JSON.stringify(payload),
+  //   });
+  // },
 };
 
 // =============================================
@@ -153,11 +177,7 @@ export const requestsAPI = {
   },
 };
 
-// =============================================
-// REPORTS (if you add real reports route later)
-// =============================================
-// export const reportsAPI = { ... };
-
+// Export all APIs
 export default {
   auth: authAPI,
   dashboard: dashboardAPI,

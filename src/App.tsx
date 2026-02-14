@@ -5,7 +5,7 @@ import './App.css';
 // Public pages
 import Login from './pages/Login';
 import Register from './pages/Register';
-import ResetPassword from './pages/ResetPassword';   // ← added
+import ResetPassword from './pages/ResetPassword';
 
 // Protected pages + layout
 import DashboardLayout from './components/layout/DashboardLayout';
@@ -27,22 +27,76 @@ const App: React.FC = () => {
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/reset-password" element={<ResetPassword />} />   {/* ← new */}
+        <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* Protected routes */}
+        {/* Protected routes with role control */}
         <Route element={<ProtectedRoute />}>
-          <Route path="/dashboard" element={<DashboardLayout role="Admin"><Dashboard /></DashboardLayout>} />
-          <Route path="/members"   element={<DashboardLayout role="Admin"><Members /></DashboardLayout>} />
-          <Route path="/rooms"     element={<DashboardLayout role="Admin"><Rooms /></DashboardLayout>} />
-          <Route path="/requests"  element={<DashboardLayout role="Admin"><Requests /></DashboardLayout>} />
-          <Route path="/reports"   element={<DashboardLayout role="Admin"><Reports /></DashboardLayout>} />
-          <Route path="/settings"  element={<DashboardLayout role="Admin"><Settings /></DashboardLayout>} />
-          <Route path="/help"      element={<DashboardLayout role="Admin"><HelpSupport /></DashboardLayout>} />
+          {/* Admin only */}
+          <Route
+            path="/dashboard"
+            element={
+              <DashboardLayout role="Admin">
+                <Dashboard />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/members"
+            element={
+              <DashboardLayout role="Admin">
+                <Members />
+              </DashboardLayout>
+            }
+          />
+
+          {/* User + Admin */}
+          <Route
+            path="/rooms"
+            element={
+              <DashboardLayout role="Admin">
+                <Rooms />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/requests"
+            element={
+              <DashboardLayout role="Admin">
+                <Requests />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <DashboardLayout role="Admin">
+                <Reports />
+              </DashboardLayout>
+            }
+          />
+
+          {/* Common */}
+          <Route
+            path="/settings"
+            element={
+              <DashboardLayout role="Admin">
+                <Settings />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/help"
+            element={
+              <DashboardLayout role="Admin">
+                <HelpSupport />
+              </DashboardLayout>
+            }
+          />
 
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Route>
 
-        {/* 404 fallback */}
+        {/* Fallback */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
