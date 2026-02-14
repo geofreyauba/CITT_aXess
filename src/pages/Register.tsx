@@ -1,190 +1,110 @@
-import React, { useMemo, useState } from 'react';
-import { Icons } from '../components/icons';
-
-type AccountType = 'student' | 'non_student' | '';
-
-const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
-const isPdf = (f?: File | null) => !!f && (f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
-
-/**
- * Demo-friendly Register page.
- * - If "Use API" is unchecked (default), registration is stored in localStorage demo users,
- *   and the user is automatically logged in (no backend required).
- * - When connecting backend, toggle "Use API" to post to your endpoint.
- */
+// src/pages/Register.tsx
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Check, X } from 'lucide-react';
+import { authAPI } from '../lib/api';
 
 const Register: React.FC = () => {
-  const [useApi, setUseApi] = useState(false);
-  const [accountType, setAccountType] = useState<AccountType>('');
+  const navigate = useNavigate();
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // ─── Basic fields ───
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [accountType, setAccountType] = useState<'student' | 'non_student'>('student');
+  const [institution, setInstitution] = useState('MUST');
+  const [membership, setMembership] = useState('');
 
-  // Student
-  const [institution, setInstitution] = useState('');
+  // ─── Student fields ───
   const [campus, setCampus] = useState('');
   const [regNumber, setRegNumber] = useState('');
   const [program, setProgram] = useState('');
   const [level, setLevel] = useState('');
   const [yearOfStudy, setYearOfStudy] = useState('');
-  const [studentIdFile, setStudentIdFile] = useState<File | null>(null);
 
-  // Non-student
+  // ─── Non-student fields ───
   const [educationBackground, setEducationBackground] = useState('');
-  const [highestEducation, setHighestEducation] = useState('');
-  const [nsInstitution, setNsInstitution] = useState('');
-  const [nsProgram, setNsProgram] = useState('');
-  const [yearCompleted, setYearCompleted] = useState('');
-  const [region, setRegion] = useState('');
-  const [district, setDistrict] = useState('');
-  const [ward, setWard] = useState('');
+
+  // ─── Files ───
+  const [studentIdFile, setStudentIdFile] = useState<File | null>(null);
   const [nationalIdFile, setNationalIdFile] = useState<File | null>(null);
-  const [educationProofFile, setEducationProofFile] = useState<File | null>(null);
+  const [residenceProofFile, setResidenceProofFile] = useState<File | null>(null);
+  const [centerFormFile, setCenterFormFile] = useState<File | null>(null);
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  // ─── Password visibility & strength ───
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [showRequirements, setShowRequirements] = useState(false);   // ← NEW
 
-  const levelOptions = useMemo(() => ['Certificate','Diploma','Bachelor','Master','PhD'], []);
-  const highestOptions = useMemo(() => ['Certificate','Diploma','Bachelor','Master','PhD','Other'], []);
+  const [requirements, setRequirements] = useState({
+    minLength: false,
+    hasUpper: false,
+    hasLower: false,
+    hasNumber: false,
+    hasSpecial: false,
+  });
 
-  const clearMessages = () => { setError(null); setSuccess(null); };
+  // Live password validation + show/hide requirements
+  useEffect(() => {
+    setShowRequirements(password.length > 0);   // ← Only show when typing starts
 
-  const validate = () => {
-    clearMessages();
-    if (accountType !== 'student' && accountType !== 'non_student') { setError('Select Student or Non-Student'); return false; }
-    if (!fullName.trim()) { setError('Full name required'); return false; }
-    if (!email.trim()) { setError('Email required'); return false; }
-    if (!phone.trim()) { setError('Phone required'); return false; }
-    if (!password || password.length < 6) { setError('Password must be at least 6 chars for demo'); return false; }
+    const check = {
+      minLength: password.length >= 8,
+      hasUpper: /[A-Z]/.test(password),
+      hasLower: /[a-z]/.test(password),
+      hasNumber: /[0-9]/.test(password),
+      hasSpecial: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password),
+    };
+    setRequirements(check);
+  }, [password]);
 
-    if (accountType === 'student') {
-      if (!institution.trim()) { setError('Institution required'); return false; }
-      if (!regNumber.trim()) { setError('Registration number required'); return false; }
-      if (!program.trim()) { setError('Program required'); return false; }
-      if (!level) { setError('Level required'); return false; }
-      if (!yearOfStudy) { setError('Year of study required'); return false; }
-      if (!studentIdFile) { setError('Upload Student ID PDF'); return false; }
-      if (!isPdf(studentIdFile)) { setError('Student ID must be PDF'); return false; }
-      if (studentIdFile.size > MAX_FILE_BYTES) { setError('Student ID > 5MB'); return false; }
-    }
-
-    if (accountType === 'non_student') {
-      if (!educationBackground.trim()) { setError('Education background required'); return false; }
-      if (!highestEducation) { setError('Highest education required'); return false; }
-      if (!nsInstitution.trim()) { setError('Institution required'); return false; }
-      if (!nsProgram.trim()) { setError('Program required'); return false; }
-      if (!region.trim()) { setError('Region required'); return false; }
-      if (!district.trim()) { setError('District required'); return false; }
-      if (!nationalIdFile) { setError('Upload National ID PDF'); return false; }
-      if (!isPdf(nationalIdFile)) { setError('National ID must be PDF'); return false; }
-      if (nationalIdFile.size > MAX_FILE_BYTES) { setError('National ID > 5MB'); return false; }
-      if (!educationProofFile) { setError('Upload education proof PDF'); return false; }
-      if (!isPdf(educationProofFile)) { setError('Education proof must be PDF'); return false; }
-      if (educationProofFile.size > MAX_FILE_BYTES) { setError('Education proof > 5MB'); return false; }
-    }
-
-    return true;
-  };
-
-  // Demo user storage helpers
-  const saveDemoUserAndLogin = (user: any) => {
-    const usersJson = localStorage.getItem('demoUsers');
-    const users = usersJson ? JSON.parse(usersJson) : [];
-    users.push(user);
-    localStorage.setItem('demoUsers', JSON.stringify(users));
-    // set auth token + currentUser
-    localStorage.setItem('authToken', `demo-${Date.now()}`);
-    localStorage.setItem('currentUser', JSON.stringify({ name: user.fullName, email: user.email, id: `REG-DEMO-${Date.now()}` }));
-    window.location.href = '/dashboard';
-  };
-
-  const handleFile = (setter: (f: File | null) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
-    setter(f);
-  };
+  const isPasswordStrong = Object.values(requirements).every(Boolean);
+  const passwordsMatch = password === confirmPassword && password !== '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setSuccess(null);
-    if (!validate()) return;
 
-    if (!useApi) {
-      // demo flow: save and login locally
-      const user = {
-        accountType,
-        fullName,
-        email,
-        phone,
-        institution,
-        campus,
-        regNumber,
-        program,
-        level,
-        yearOfStudy,
-        educationBackground,
-        highestEducation,
-        nsInstitution,
-        nsProgram,
-        yearCompleted,
-        region,
-        district,
-        ward,
-      };
-      saveDemoUserAndLogin(user);
-      return;
+    if (password !== confirmPassword) return setError('Passwords do not match');
+    if (!isPasswordStrong) return setError('Password does not meet strength requirements');
+
+    setLoading(true);
+
+    const formData = new FormData();
+
+    formData.append('fullName', fullName);
+    formData.append('email', email);
+    formData.append('phone', phone);
+    formData.append('password', password);
+    formData.append('accountType', accountType);
+    formData.append('institution', institution);
+    formData.append('membership', membership);
+
+    if (accountType === 'student') {
+      formData.append('campus', campus);
+      formData.append('regNumber', regNumber);
+      formData.append('program', program);
+      formData.append('level', level);
+      formData.append('yearOfStudy', yearOfStudy);
+      if (studentIdFile) formData.append('studentIdFile', studentIdFile);
+    } else {
+      formData.append('educationBackground', educationBackground);
+      if (nationalIdFile) formData.append('nationalIdFile', nationalIdFile);
+      if (residenceProofFile) formData.append('educationProofFile', residenceProofFile);
+      if (centerFormFile) formData.append('educationProofFile', centerFormFile);
     }
 
-    // Use API when toggle enabled
-    setLoading(true);
     try {
-      const fd = new FormData();
-      fd.append('account_type', accountType);
-      fd.append('full_name', fullName.trim());
-      fd.append('email', email.trim());
-      fd.append('phone', phone.trim());
-      fd.append('password', password);
-
-      if (accountType === 'student') {
-        fd.append('institution', institution.trim());
-        fd.append('campus', campus.trim());
-        fd.append('registration_number', regNumber.trim());
-        fd.append('program', program.trim());
-        fd.append('level', level);
-        fd.append('year_of_study', yearOfStudy);
-        if (studentIdFile) fd.append('student_id_file', studentIdFile, studentIdFile.name);
-      } else {
-        fd.append('education_background', educationBackground.trim());
-        fd.append('highest_education', highestEducation);
-        fd.append('institution', nsInstitution.trim());
-        fd.append('program', nsProgram.trim());
-        fd.append('year_completed', yearCompleted.trim());
-        fd.append('region', region.trim());
-        fd.append('district', district.trim());
-        fd.append('ward', ward.trim());
-        if (nationalIdFile) fd.append('national_id_file', nationalIdFile, nationalIdFile.name);
-        if (educationProofFile) fd.append('education_proof_file', educationProofFile, educationProofFile.name);
-      }
-
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        body: fd,
-        credentials: 'include',
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setError(body.message || 'Registration failed');
-        return;
-      }
-
-      setSuccess('Registration successful. Redirecting to login...');
-      setTimeout(() => (window.location.href = '/login'), 1200);
-    } catch (err) {
-      console.error(err);
-      setError('Network error — could not reach API.');
+      await authAPI.register(formData);
+      alert('Registration successful! Your account is pending approval.');
+      navigate('/login');
+    } catch (err: any) {
+      setError(err.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
@@ -192,179 +112,188 @@ const Register: React.FC = () => {
 
   return (
     <div className="auth-page">
-      <div className="auth-card big">
-        <h1 className="auth-title">aXess Dynamic Registration System</h1>
-        <p className="auth-sub">Please select account type to continue</p>
+      <div className="auth-card" style={{ maxWidth: '560px' }}>
+        <h1 className="auth-title">aXess – Create Account</h1>
 
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input type="checkbox" checked={useApi} onChange={e => setUseApi(e.target.checked)} />
-            Use API (uncheck to use local/demo)
-          </label>
-          <div style={{ marginLeft: 'auto', color: 'var(--muted-text)', fontSize: 13 }}>
-            Demo files must be PDF (you can still select files; they will not be uploaded in demo mode)
-          </div>
-        </div>
+        <form onSubmit={handleSubmit} className="auth-form">
+          {error && <div className="form-error">{error}</div>}
 
-        <form onSubmit={handleSubmit} className="auth-form" encType="multipart/form-data" noValidate>
-          {error && <div className="form-error" role="alert">{error}</div>}
-          {success && <div className="form-success">{success}</div>}
+          <label>Full Name *</label>
+          <input type="text" className="auth-input" value={fullName} onChange={e => setFullName(e.target.value)} required />
 
-          <fieldset className="form-group" aria-required>
-            <legend className="form-legend">Account Type</legend>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <label className={`radio-card ${accountType === 'student' ? 'active' : ''}`}>
-                <input type="radio" name="accountType" value="student" checked={accountType === 'student'} onChange={() => setAccountType('student')} />
-                <div><strong>Student</strong></div>
-                <div className="muted">Register with student credentials</div>
-              </label>
+          <label>Email Address *</label>
+          <input type="email" className="auth-input" value={email} onChange={e => setEmail(e.target.value)} required />
 
-              <label className={`radio-card ${accountType === 'non_student' ? 'active' : ''}`}>
-                <input type="radio" name="accountType" value="non_student" checked={accountType === 'non_student'} onChange={() => setAccountType('non_student')} />
-                <div><strong>Non-Student</strong></div>
-                <div className="muted">Industry, guest, staff or other</div>
-              </label>
-            </div>
-          </fieldset>
+          <label>Phone Number *</label>
+          <input type="tel" className="auth-input" value={phone} onChange={e => setPhone(e.target.value)} required />
 
-          <div className="form-grid">
-            <label className="form-label">
-              Full Name
-              <input className="auth-input" value={fullName} onChange={e => setFullName(e.target.value)} required />
-            </label>
-
-            <label className="form-label">
-              Email
-              <input type="email" className="auth-input" value={email} onChange={e => setEmail(e.target.value)} required />
-            </label>
-
-            <label className="form-label">
-              Phone Number
-              <input className="auth-input" value={phone} onChange={e => setPhone(e.target.value)} required />
-            </label>
-
-            <label className="form-label">
-              Password
-              <input type="password" className="auth-input" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Min 6 characters for demo" />
-            </label>
-          </div>
-
-          {/* Student fields */}
-          {accountType === 'student' && (
-            <>
-              <h3 className="section-sub">Student details</h3>
-              <div className="form-grid">
-                <label className="form-label">
-                  Institution Name
-                  <input className="auth-input" value={institution} onChange={e => setInstitution(e.target.value)} />
-                </label>
-
-                <label className="form-label">
-                  Campus (optional)
-                  <input className="auth-input" value={campus} onChange={e => setCampus(e.target.value)} />
-                </label>
-
-                <label className="form-label">
-                  Registration Number / Student ID
-                  <input className="auth-input" value={regNumber} onChange={e => setRegNumber(e.target.value)} />
-                </label>
-
-                <label className="form-label">
-                  Program / Course
-                  <input className="auth-input" value={program} onChange={e => setProgram(e.target.value)} />
-                </label>
-
-                <label className="form-label">
-                  Level of Study
-                  <select className="auth-input" value={level} onChange={e => setLevel(e.target.value)}>
-                    <option value="">Select</option>
-                    {levelOptions.map(l => <option key={l} value={l}>{l}</option>)}
-                  </select>
-                </label>
-
-                <label className="form-label">
-                  Year of Study
-                  <input type="number" min={1} max={10} className="auth-input" value={yearOfStudy} onChange={e => setYearOfStudy(e.target.value)} />
-                </label>
-
-                <label className="form-label">
-                  Upload Student ID (PDF only, max 5MB)
-                  <input type="file" accept="application/pdf" onChange={handleFile(setStudentIdFile)} />
-                  <div className="form-hint">Used for student verification only. We will not share your document.</div>
-                </label>
-              </div>
-            </>
-          )}
-
-          {/* Non-student fields */}
-          {accountType === 'non_student' && (
-            <>
-              <h3 className="section-sub">Non-student details</h3>
-              <div className="form-grid">
-                <label className="form-label">
-                  Education Background (short)
-                  <input className="auth-input" value={educationBackground} onChange={e => setEducationBackground(e.target.value)} />
-                </label>
-
-                <label className="form-label">
-                  Highest Level of Education
-                  <select className="auth-input" value={highestEducation} onChange={e => setHighestEducation(e.target.value)}>
-                    <option value="">Select</option>
-                    {highestOptions.map(v => <option key={v} value={v}>{v}</option>)}
-                  </select>
-                </label>
-
-                <label className="form-label">
-                  Institution Name
-                  <input className="auth-input" value={nsInstitution} onChange={e => setNsInstitution(e.target.value)} />
-                </label>
-
-                <label className="form-label">
-                  Program / Field of Study
-                  <input className="auth-input" value={nsProgram} onChange={e => setNsProgram(e.target.value)} />
-                </label>
-
-                <label className="form-label">
-                  Year Completed or "Currently Studying"
-                  <input className="auth-input" value={yearCompleted} onChange={e => setYearCompleted(e.target.value)} />
-                </label>
-
-                <label className="form-label">
-                  Region
-                  <input className="auth-input" value={region} onChange={e => setRegion(e.target.value)} />
-                </label>
-
-                <label className="form-label">
-                  District
-                  <input className="auth-input" value={district} onChange={e => setDistrict(e.target.value)} />
-                </label>
-
-                <label className="form-label">
-                  Ward (optional)
-                  <input className="auth-input" value={ward} onChange={e => setWard(e.target.value)} />
-                </label>
-
-                <label className="form-label">
-                  Upload National ID / Passport (PDF only, max 5MB)
-                  <input type="file" accept="application/pdf" onChange={handleFile(setNationalIdFile)} />
-                </label>
-
-                <label className="form-label">
-                  Upload Education Proof (PDF only, max 5MB)
-                  <input type="file" accept="application/pdf" onChange={handleFile(setEducationProofFile)} />
-                </label>
-              </div>
-            </>
-          )}
-
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button type="submit" className="save-btn" disabled={loading}>
-              {loading ? 'Submitting...' : (<><Icons.Users size={14} /> Register</>)}
+          <label>Password *</label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              className="auth-input"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{
+                position: 'absolute' as const,
+                right: '14px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#6b7280',
+              }}
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
-
-            <button type="button" className="cancel-btn" onClick={() => (window.location.href = '/login')}>Back to login</button>
           </div>
+
+          {/* Password requirements - hidden until typing starts */}
+          {showRequirements && (
+            <div style={{ margin: '12px 0 20px 0', fontSize: '13px' }}>
+              <p style={{ fontWeight: 600, marginBottom: '8px', color: '#374151' }}>
+                Password must contain:
+              </p>
+              <div style={{ display: 'grid', gap: '6px' }}>
+                {[
+                  { label: 'At least 8 characters', met: requirements.minLength },
+                  { label: 'One uppercase letter (A-Z)', met: requirements.hasUpper },
+                  { label: 'One lowercase letter (a-z)', met: requirements.hasLower },
+                  { label: 'One number (0-9)', met: requirements.hasNumber },
+                  { label: 'One special character (!@#$%^&*)', met: requirements.hasSpecial },
+                ].map((req, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {req.met ? (
+                      <Check size={16} color="#10b981" />
+                    ) : (
+                      <X size={16} color="#ef4444" />
+                    )}
+                    <span style={{ color: req.met ? '#10b981' : '#6b7280' }}>
+                      {req.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <label>Confirm Password *</label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showConfirm ? 'text' : 'password'}
+              className="auth-input"
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirm(!showConfirm)}
+              style={{
+                position: 'absolute' as const,
+                right: '14px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#6b7280',
+              }}
+            >
+              {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
+
+          <label>Account Type *</label>
+          <select className="auth-input" value={accountType} onChange={e => setAccountType(e.target.value as any)} required>
+            <option value="student">Student</option>
+            <option value="non_student">Non-Student / Professional</option>
+          </select>
+
+          {accountType === 'student' && (
+            <div className="conditional-fields">
+              <label>Campus *</label>
+              <select className="auth-input" value={campus} onChange={e => setCampus(e.target.value)} required>
+                <option value="">Select Campus</option>
+                <option value="Mbeya">Mbeya Campus</option>
+                <option value="Rukwa">Rukwa Campus</option>
+                <option value="Mtwara">Mtwara Campus</option>
+                <option value="Other">Other</option>
+              </select>
+
+              <label>Registration Number *</label>
+              <input type="text" className="auth-input" value={regNumber} onChange={e => setRegNumber(e.target.value)} required />
+
+              <label>Program *</label>
+              <select className="auth-input" value={program} onChange={e => setProgram(e.target.value)} required>
+                <option value="">Select Program</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Information Systems">Information Systems</option>
+                <option value="Engineering">Engineering</option>
+                <option value="Business Administration">Business Administration</option>
+                <option value="Other">Other</option>
+              </select>
+
+              <label>Level</label>
+              <select className="auth-input" value={level} onChange={e => setLevel(e.target.value)}>
+                <option value="">Select Level</option>
+                <option value="Undergraduate">Undergraduate</option>
+                <option value="Postgraduate">Postgraduate</option>
+              </select>
+
+              <label>Year of Study</label>
+              <select className="auth-input" value={yearOfStudy} onChange={e => setYearOfStudy(e.target.value)}>
+                <option value="">Select Year</option>
+                <option value="1">Year 1</option>
+                <option value="2">Year 2</option>
+                <option value="3">Year 3</option>
+                <option value="4">Year 4</option>
+                <option value="5">Year 5</option>
+              </select>
+
+              <label>Student ID (PDF only) *</label>
+              <input type="file" accept="application/pdf" onChange={e => setStudentIdFile(e.target.files?.[0] || null)} required />
+            </div>
+          )}
+
+          {accountType === 'non_student' && (
+            <div className="conditional-fields">
+              <label>Education Background</label>
+              <textarea className="auth-input" value={educationBackground} onChange={e => setEducationBackground(e.target.value)} rows={3} />
+
+              <label>National ID / Any Registration ID (PDF) *</label>
+              <input type="file" accept="application/pdf" onChange={e => setNationalIdFile(e.target.files?.[0] || null)} required />
+
+              <label>Residence Proof (signed by Village Chairman) (PDF) *</label>
+              <input type="file" accept="application/pdf" onChange={e => setResidenceProofFile(e.target.files?.[0] || null)} required />
+
+              <label>Registration Form from the Center (PDF) *</label>
+              <input type="file" accept="application/pdf" onChange={e => setCenterFormFile(e.target.files?.[0] || null)} required />
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="save-btn"
+            disabled={loading || !isPasswordStrong || !passwordsMatch}
+            style={{
+              opacity: loading || !isPasswordStrong || !passwordsMatch ? 0.6 : 1,
+              cursor: loading || !isPasswordStrong || !passwordsMatch ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {loading ? 'Creating Account...' : 'Create Account'}
+          </button>
         </form>
+
+        <p style={{ textAlign: 'center', marginTop: '16px' }}>
+          Already have an account? <a href="/login" style={{ color: '#6366f1' }}>Sign in</a>
+        </p>
       </div>
     </div>
   );

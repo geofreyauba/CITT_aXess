@@ -1,92 +1,68 @@
-// src/pages/Reports.tsx
-import React, { useMemo, useState } from 'react';
+// src/pages/Reports.tsx - Actually shows KEY REQUESTS from database
+import React, { useMemo, useState, useEffect } from 'react';
 import { Icons } from '../components/icons';
 import Badge, { BadgeVariant } from '../components/ui/Badge';
-
-type RequestStatus = 'pending' | 'approved' | 'completed';
+import { requestsAPI } from '../lib/api';
 
 interface KeyRequest {
-  id: number;
-  requestedBy: string;      // student/staff name or ID
-  roomName: string;
-  roomCode: string;
-  purpose: string;
-  devices: string;
-  requestedDate: string;    // ISO
-  startTime: string;
-  durationHours: number;
-  status: RequestStatus;
+  _id: string;
+  userId: {
+    _id: string;
+    fullName: string;
+    phone?: string;
+  };
+  roomId: {
+    _id: string;
+    name: string;
+    code: string;
+  };
+  carriedItems?: string;
+  membership?: string;
+  status: 'pending' | 'approved' | 'returned';
+  requestedAt: string;
+  returnedAt?: string;
+  createdAt: string;
 }
 
-// Sample data - COMPLETELY REMOVED #1004 rejected entry
-const sampleRequests: KeyRequest[] = [
-  {
-    id: 1001,
-    requestedBy: "Alice Johnson (STU-2341)",
-    roomName: "Maker Studio",
-    roomCode: "A-012",
-    purpose: "3D printing workshop for final year project",
-    devices: "Laptop, 3D printer filament",
-    requestedDate: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-    startTime: "10:00",
-    durationHours: 3,
-    status: "approved",
-  },
-  {
-    id: 1002,
-    requestedBy: "Bob Mwangi (STU-1890)",
-    roomName: "AI Innovation Lab",
-    roomCode: "B-205",
-    purpose: "Team coding session for hackathon prep",
-    devices: "2 laptops, external monitor",
-    requestedDate: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
-    startTime: "14:30",
-    durationHours: 4,
-    status: "pending",
-  },
-  {
-    id: 1003,
-    requestedBy: "Carol Peter (STA-045)",
-    roomName: "Media Room",
-    roomCode: "L-115",
-    purpose: "Guest lecture recording",
-    devices: "Projector, camera equipment",
-    requestedDate: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
-    startTime: "09:00",
-    durationHours: 2,
-    status: "completed",
-  },
-  {
-    id: 1005,
-    requestedBy: "Eva Santos (STU-4321)",
-    roomName: "Maker Studio",
-    roomCode: "A-012",
-    purpose: "Prototype testing",
-    devices: "Arduino kits, soldering tools",
-    requestedDate: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-    startTime: "15:00",
-    durationHours: 3,
-    status: "approved",
-  },
-];
+const formatDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { 
+  day: '2-digit', 
+  month: 'short', 
+  year: 'numeric' 
+});
 
-const formatDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-
-const statusToBadge = (status: RequestStatus): BadgeVariant => {
+const statusToBadge = (status: string): BadgeVariant => {
   switch (status) {
     case 'pending': return 'pending';
     case 'approved': return 'returned';
-    case 'completed': return 'returned';
+    case 'returned': return 'returned';
     default: return 'restricted';
   }
 };
 
 const Reports: React.FC = () => {
-  const [requests, setRequests] = useState<KeyRequest[]>(sampleRequests);
+  const [requests, setRequests] = useState<KeyRequest[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | RequestStatus>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'returned'>('all');
   const [page, setPage] = useState(1);
   const perPage = 10;
+
+  useEffect(() => {
+    loadRequests();
+  }, []);
+
+  const loadRequests = async () => {
+    try {
+      setLoading(true);
+      const data = await requestsAPI.getAll();
+      setRequests(data);
+    } catch (err: any) {
+      console.error('Failed to load requests:', err);
+      alert('Failed to load requests: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
@@ -95,15 +71,15 @@ const Reports: React.FC = () => {
         if (statusFilter !== 'all' && r.status !== statusFilter) return false;
         if (q) {
           return (
-            r.requestedBy.toLowerCase().includes(q) ||
-            r.roomName.toLowerCase().includes(q) ||
-            r.roomCode.toLowerCase().includes(q) ||
-            r.purpose.toLowerCase().includes(q)
+            r.userId?.fullName?.toLowerCase().includes(q) ||
+            r.roomId?.name?.toLowerCase().includes(q) ||
+            r.roomId?.code?.toLowerCase().includes(q) ||
+            (r.carriedItems || '').toLowerCase().includes(q)
           );
         }
         return true;
       })
-      .sort((a, b) => new Date(b.requestedDate).getTime() - new Date(a.requestedDate).getTime());
+      .sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
   }, [requests, query, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
@@ -112,18 +88,27 @@ const Reports: React.FC = () => {
   // Analytics calculations
   const totalRequests = requests.length;
   const pendingCount = requests.filter(r => r.status === 'pending').length;
-  const approvedCount = requests.filter(r => r.status === 'approved' || r.status === 'completed').length;
+  const approvedCount = requests.filter(r => r.status === 'approved' || r.status === 'returned').length;
   const approvalRate = totalRequests ? Math.round((approvedCount / totalRequests) * 100) : 0;
 
   // Most used rooms
   const roomUsage = useMemo(() => {
-    const map = new Map<string, number>();
+    const map = new Map<string, { name: string; code: string; count: number }>();
     requests.forEach(r => {
-      const key = `${r.roomName} (${r.roomCode})`;
-      map.set(key, (map.get(key) || 0) + 1);
+      if (!r.roomId) return;
+      const key = r.roomId._id;
+      const existing = map.get(key);
+      if (existing) {
+        existing.count++;
+      } else {
+        map.set(key, {
+          name: r.roomId.name,
+          code: r.roomId.code,
+          count: 1
+        });
+      }
     });
-    return Array.from(map.entries())
-      .map(([name, count]) => ({ name, count }))
+    return Array.from(map.values())
       .sort((a, b) => b.count - a.count)
       .slice(0, 6);
   }, [requests]);
@@ -131,15 +116,13 @@ const Reports: React.FC = () => {
   const maxUsage = roomUsage.length ? Math.max(...roomUsage.map(r => r.count)) : 1;
 
   const exportCSV = () => {
-    const headers = ['ID', 'Requested By', 'Room', 'Purpose', 'Date', 'Start Time', 'Duration (hrs)', 'Status'];
+    const headers = ['ID', 'Requested By', 'Room', 'Carried Items', 'Date', 'Status'];
     const rows = filtered.map(r => [
-      r.id,
-      `"${r.requestedBy}"`,
-      `"${r.roomName} (${r.roomCode})"`,
-      `"${r.purpose.replace(/"/g, '""')}"`,
-      r.requestedDate,
-      r.startTime,
-      r.durationHours,
+      r._id,
+      `"${r.userId?.fullName || 'Unknown'}"`,
+      `"${r.roomId?.name || 'Unknown'} (${r.roomId?.code || ''})"`,
+      `"${(r.carriedItems || '').replace(/"/g, '""')}"`,
+      r.requestedAt,
       r.status,
     ]);
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -149,7 +132,12 @@ const Reports: React.FC = () => {
     a.href = url;
     a.download = `key-requests-${new Date().toISOString().slice(0,10)}.csv`;
     a.click();
+    URL.revokeObjectURL(url);
   };
+
+  if (loading) {
+    return <div style={{ padding: '2rem' }}>Loading requests...</div>;
+  }
 
   return (
     <>
@@ -206,7 +194,7 @@ const Reports: React.FC = () => {
               className="modal-input"
               value={query}
               onChange={e => { setQuery(e.target.value); setPage(1); }}
-              placeholder="Search by name, room, or purpose..."
+              placeholder="Search by name, room, or items..."
             />
 
             <select
@@ -216,7 +204,7 @@ const Reports: React.FC = () => {
               <option value="all">All Statuses</option>
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
-              <option value="completed">Completed</option>
+              <option value="returned">Returned</option>
             </select>
           </div>
 
@@ -225,22 +213,34 @@ const Reports: React.FC = () => {
             <table className="history-table">
               <thead>
                 <tr>
-                  <th>ID</th>
                   <th>Requested By</th>
                   <th>Room</th>
-                  <th>Purpose</th>
+                  <th>Carried Items</th>
                   <th>Date</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {shown.map(r => (
-                  <tr key={r.id}>
-                    <td><strong>#{r.id}</strong></td>
-                    <td>{r.requestedBy}</td>
-                    <td>{r.roomName} <span style={{ color: 'var(--muted-text)' }}>({r.roomCode})</span></td>
-                    <td>{r.purpose}</td>
-                    <td>{formatDate(r.requestedDate)}</td>
+                  <tr key={r._id}>
+                    <td>
+                      <strong>{r.userId?.fullName || 'Unknown'}</strong>
+                      {r.userId?.phone && (
+                        <div style={{ fontSize: '12px', color: 'var(--muted-text)' }}>
+                          {r.userId.phone}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {r.roomId?.name || 'Unknown'}{' '}
+                      <span style={{ color: 'var(--muted-text)' }}>
+                        ({r.roomId?.code || ''})
+                      </span>
+                    </td>
+                    <td style={{ maxWidth: '200px' }}>
+                      {r.carriedItems || '—'}
+                    </td>
+                    <td>{formatDate(r.requestedAt)}</td>
                     <td>
                       <Badge variant={statusToBadge(r.status)}>
                         {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
@@ -249,7 +249,11 @@ const Reports: React.FC = () => {
                   </tr>
                 ))}
                 {shown.length === 0 && (
-                  <tr><td colSpan={6} className="empty-table">No matching requests</td></tr>
+                  <tr>
+                    <td colSpan={5} className="empty-table">
+                      No matching requests
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -259,8 +263,20 @@ const Reports: React.FC = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem' }}>
             <div>Page {page} of {totalPages}</div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="cancel-btn" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>Previous</button>
-              <button className="save-btn" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Next</button>
+              <button
+                className="cancel-btn"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                Previous
+              </button>
+              <button
+                className="save-btn"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                Next
+              </button>
             </div>
           </div>
         </div>
@@ -274,18 +290,26 @@ const Reports: React.FC = () => {
             </div>
 
             <div className="top-rooms-list">
-              {roomUsage.map((room, i) => (
-                <div key={i} className="room-usage-item">
-                  <div className="room-name">{room.name}</div>
-                  <div className="usage-bar-container">
-                    <div
-                      className="usage-bar"
-                      style={{ width: `${(room.count / maxUsage) * 100}%` }}
-                    />
-                  </div>
-                  <div className="room-count">{room.count} requests</div>
+              {roomUsage.length === 0 ? (
+                <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--muted-text)' }}>
+                  No data yet
                 </div>
-              ))}
+              ) : (
+                roomUsage.map((room, i) => (
+                  <div key={i} className="room-usage-item">
+                    <div className="room-name">
+                      {room.name} ({room.code})
+                    </div>
+                    <div className="usage-bar-container">
+                      <div
+                        className="usage-bar"
+                        style={{ width: `${(room.count / maxUsage) * 100}%` }}
+                      />
+                    </div>
+                    <div className="room-count">{room.count} requests</div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

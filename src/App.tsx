@@ -5,6 +5,7 @@ import './App.css';
 // Public pages
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ResetPassword from './pages/ResetPassword';   // ← added
 
 // Protected pages + layout
 import DashboardLayout from './components/layout/DashboardLayout';
@@ -26,74 +27,22 @@ const App: React.FC = () => {
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/reset-password" element={<ResetPassword />} />   {/* ← new */}
 
-        {/* Protected routes: wrap each page inside DashboardLayout so layout is not shown on public pages */}
+        {/* Protected routes */}
         <Route element={<ProtectedRoute />}>
-          <Route
-            path="/dashboard"
-            element={
-              <DashboardLayout role="Admin">
-                <Dashboard />
-              </DashboardLayout>
-            }
-          />
-          <Route
-            path="/members"
-            element={
-              <DashboardLayout role="Admin">
-                <Members />
-              </DashboardLayout>
-            }
-          />
-          <Route
-            path="/rooms"
-            element={
-              <DashboardLayout role="Admin">
-                <Rooms />
-              </DashboardLayout>
-            }
-          />
-          <Route
-            path="/requests"
-            element={
-              <DashboardLayout role="Admin">
-                <Requests />
-              </DashboardLayout>
-            }
-          />
-          <Route
-            path="/reports"
-            element={
-              <DashboardLayout role="Admin">
-                <Reports />
-              </DashboardLayout>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <DashboardLayout role="Admin">
-                <Settings />
-              </DashboardLayout>
-            }
-          />
-          <Route
-            path="/help"
-            element={
-              <DashboardLayout role="Admin">
-                <HelpSupport />
-              </DashboardLayout>
-            }
-          />
+          <Route path="/dashboard" element={<DashboardLayout role="Admin"><Dashboard /></DashboardLayout>} />
+          <Route path="/members"   element={<DashboardLayout role="Admin"><Members /></DashboardLayout>} />
+          <Route path="/rooms"     element={<DashboardLayout role="Admin"><Rooms /></DashboardLayout>} />
+          <Route path="/requests"  element={<DashboardLayout role="Admin"><Requests /></DashboardLayout>} />
+          <Route path="/reports"   element={<DashboardLayout role="Admin"><Reports /></DashboardLayout>} />
+          <Route path="/settings"  element={<DashboardLayout role="Admin"><Settings /></DashboardLayout>} />
+          <Route path="/help"      element={<DashboardLayout role="Admin"><HelpSupport /></DashboardLayout>} />
 
-          {/* root of protected area goes to dashboard */}
-          <Route
-            path="/"
-            element={<Navigate to="/dashboard" replace />}
-          />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Route>
 
-        {/* fallback */}
+        {/* 404 fallback */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>

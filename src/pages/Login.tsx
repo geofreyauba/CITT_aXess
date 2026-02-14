@@ -1,136 +1,172 @@
+// src/pages/Login.tsx
 import React, { useState } from 'react';
-import { Icons } from '../components/icons';
-
-/**
- * Demo-friendly Login page.
- * - Demo mode (default): no backend required — stores auth token in localStorage
- * - Use API (toggle) to call real backend when available
- */
+import { useNavigate } from 'react-router-dom';
+import { authAPI } from '../lib/api';
 
 const Login: React.FC = () => {
-  const [email, setEmail] = useState('demo@axess.local');
-  const [password, setPassword] = useState('password');
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [useApi, setUseApi] = useState(false); // default: demo mode
-
-  const doLocalLogin = (emailVal: string) => {
-    // Simple demo token + currentUser stored in localStorage
-    const token = `demo-token-${Date.now()}`;
-    localStorage.setItem('authToken', token);
-    localStorage.setItem('currentUser', JSON.stringify({ name: emailVal.split('@')[0], email: emailVal, id: 'REG-DEMO-001' }));
-    // Redirect to dashboard
-    window.location.href = '/dashboard';
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    if (!email.trim() || !password) {
-      setError('Please enter email and password.');
-      return;
-    }
-
-    if (!useApi) {
-      // demo/local login
-      doLocalLogin(email.trim());
-      return;
-    }
-
-    // try real API
     setLoading(true);
+
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email: email.trim(), password }),
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setError(body.message || `Login failed (${res.status})`);
-        setLoading(false);
-        return;
-      }
-
-      const body = await res.json().catch(() => ({}));
-      const token = body.token ?? body.accessToken ?? `server-token-${Date.now()}`;
-      try { localStorage.setItem('authToken', token); } catch {}
-      try { localStorage.setItem('currentUser', JSON.stringify(body.user ?? { name: email.split('@')[0], email })); } catch {}
-      window.location.href = '/dashboard';
-    } catch (err) {
-      console.error(err);
-      setError('Network error — could not reach API. You can use demo mode instead.');
+      const response = await authAPI.login(email.trim(), password);
+      localStorage.setItem('authToken', response.token);
+      localStorage.setItem('currentUser', JSON.stringify(response.user));
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Invalid credentials');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <h1 className="auth-title">aXess — Sign in</h1>
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px'
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: '16px',
+        boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+        padding: '40px 30px',
+        width: '100%',
+        maxWidth: '420px'
+      }}>
+        <h1 style={{
+          textAlign: 'center',
+          fontSize: '28px',
+          fontWeight: 700,
+          color: '#1e3a8a',
+          marginBottom: '24px'
+        }}>
+          aXess – Sign in
+        </h1>
 
-        <form onSubmit={handleSubmit} className="auth-form" noValidate>
-          {error && <div className="form-error" role="alert">{error}</div>}
-
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input type="checkbox" checked={useApi} onChange={e => setUseApi(e.target.checked)} />
-              Use API (uncheck to use local/demo)
-            </label>
-
-            <div style={{ marginLeft: 'auto', color: 'var(--muted-text)', fontSize: 13 }}>
-              Demo credentials: demo@axess.local / password
-            </div>
+        {error && (
+          <div style={{
+            background: '#fee2e2',
+            color: '#b91c1c',
+            padding: '12px',
+            borderRadius: '8px',
+            textAlign: 'center',
+            marginBottom: '16px',
+            fontSize: '14px'
+          }}>
+            {error}
           </div>
+        )}
 
-          <label className="form-label">
-            Email address
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '6px',
+              fontWeight: 600,
+              color: '#374151',
+              fontSize: '14px'
+            }}>
+              Email address
+            </label>
             <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
-              placeholder="you@institution.edu"
-              className="auth-input"
-              autoComplete="email"
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                border: '2px solid #e5e7eb',
+                borderRadius: '10px',
+                fontSize: '16px'
+              }}
             />
-          </label>
+          </div>
 
-          <label className="form-label">
-            Password
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '6px',
+              fontWeight: 600,
+              color: '#374151',
+              fontSize: '14px'
+            }}>
+              Password
+            </label>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              placeholder="Enter your password"
-              className="auth-input"
-              autoComplete="current-password"
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                border: '2px solid #e5e7eb',
+                borderRadius: '10px',
+                fontSize: '16px'
+              }}
             />
-          </label>
+          </div>
 
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
-            <button type="submit" className="save-btn" disabled={loading}>
-              {loading ? 'Signing in...' : (<><Icons.Key size={14} /> Sign in</>)}
-            </button>
+          <div style={{ textAlign: 'right', margin: '8px 0 16px 0' }}>
+            <a
+              href="/reset-password"
+              style={{
+                color: '#6366f1',
+                fontSize: '14px',
+                textDecoration: 'none'
+              }}
+            >
+              Forgot password?
+            </a>
+          </div>
 
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+              color: 'white',
+              border: 'none',
+              padding: '14px 24px',
+              borderRadius: '10px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              width: '100%',
+              fontSize: '16px'
+            }}
+          >
+            {loading ? 'Signing in...' : 'Sign in'}
+          </button>
+
+          <div style={{ textAlign: 'center', marginTop: '16px' }}>
             <button
               type="button"
-              className="cancel-btn"
-              onClick={() => (window.location.href = '/register')}
+              onClick={() => navigate('/register')}
+              style={{
+                background: 'transparent',
+                border: '1px solid #6366f1',
+                color: '#6366f1',
+                padding: '12px 24px',
+                borderRadius: '10px',
+                cursor: 'pointer'
+              }}
             >
               Create account
             </button>
           </div>
         </form>
-
-        <p className="auth-note" style={{ marginTop: 12 }}>
-          Don't have an account? <a href="/register">Register</a>
-        </p>
       </div>
     </div>
   );

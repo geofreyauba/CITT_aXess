@@ -1,86 +1,116 @@
+// src/pages/Members.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icons } from '../components/icons';
-
-/**
- * Members page – shows registered users
- * - If you use demo mode (Register saved demo users to localStorage as "demoUsers"),
- *   this reads them and displays.
- * - If none found, shows a handful of sample entries so UI is visible.
- */
+import { membersAPI } from '../lib/api';
 
 interface Member {
-  id?: string;
-  fullName?: string;
-  email?: string;
-  phone?: string;
-  accountType?: 'student' | 'non_student' | string;
+  _id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  accountType: 'student' | 'non_student';
   institution?: string;
-  verificationStatus?: 'pending' | 'approved' | 'rejected' | string;
+  verificationStatus: 'pending' | 'approved' | 'rejected';
+  membership?: string;
+  createdAt?: string;
 }
-
-const sampleMembers: Member[] = [
-  { id: 'REG-1001', fullName: 'Alice Mwanga', email: 'alice@example.edu', phone: '+255700111222', accountType: 'student', institution: 'MUST', verificationStatus: 'approved' },
-  { id: 'REG-1002', fullName: 'Bob Kamau', email: 'bob@example.com', phone: '+255700111333', accountType: 'non_student', institution: 'ACME Ltd', verificationStatus: 'pending' },
-  { id: 'REG-1003', fullName: 'Carol Ndege', email: 'carol@example.edu', phone: '+255700111444', accountType: 'student', institution: 'MUST', verificationStatus: 'approved' },
-  { id: 'REG-1004', fullName: 'David Maliki', email: 'david@example.edu', phone: '+255700111555', accountType: 'student', institution: 'UDSM', verificationStatus: 'rejected' },
-  { id: 'REG-1005', fullName: 'Emma Hassan', email: 'emma@example.com', phone: '+255700111666', accountType: 'non_student', institution: 'Tech Corp', verificationStatus: 'approved' },
-];
 
 const Members: React.FC = () => {
   const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [accountTypeFilter, setAccountTypeFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const perPage = 12;
 
   useEffect(() => {
-    // Try to load demo users from localStorage (saved by demo Register)
-    try {
-      const raw = localStorage.getItem('demoUsers');
-      if (raw) {
-        const parsed = JSON.parse(raw) as any[];
-        // map to Member shape
-        const mapped = parsed.map((u, i) => ({
-          id: u.id || `REG-DEMO-${1000 + i}`,
-          fullName: u.fullName || u.full_name || u.name || 'N/A',
-          email: u.email || '—',
-          phone: u.phone || '—',
-          accountType: u.accountType || u.account_type || 'student',
-          institution: u.institution || u.institution_name || '—',
-          verificationStatus: u.verificationStatus || 'pending',
-        }));
-        setMembers(mapped);
-        return;
-      }
-    } catch {
-      // ignore parse errors
-    }
-
-    // fallback to sample members
-    setMembers(sampleMembers);
+    loadMembers();
   }, []);
+
+  const loadMembers = async () => {
+    try {
+      setLoading(true);
+      const data = await membersAPI.getAll();
+      setMembers(data);
+    } catch (err: any) {
+      console.error('Failed to load members:', err);
+      alert('Failed to load members: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApprove = async (id: string, name: string) => {
+    if (!confirm(`Approve ${name}?`)) return;
+    
+    try {
+      setActionLoading(id);
+      await membersAPI.approve(id);
+      // Update local state
+      setMembers(prev =>
+        prev.map(m => (m._id === id ? { ...m, verificationStatus: 'approved' as const } : m))
+      );
+      alert(`${name} has been approved and notified via email!`);
+    } catch (err: any) {
+      console.error('Approve error:', err);
+      alert('Failed to approve: ' + err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleReject = async (id: string, name: string) => {
+    if (!confirm(`Reject ${name}? They will be notified via email.`)) return;
+    
+    try {
+      setActionLoading(id);
+      await membersAPI.reject(id);
+      setMembers(prev =>
+        prev.map(m => (m._id === id ? { ...m, verificationStatus: 'rejected' as const } : m))
+      );
+      alert(`${name} has been rejected and notified.`);
+    } catch (err: any) {
+      console.error('Reject error:', err);
+      alert('Failed to reject: ' + err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Permanently delete ${name}?`)) return;
+    
+    try {
+      setActionLoading(id);
+      await membersAPI.delete(id);
+      setMembers(prev => prev.filter(m => m._id !== id));
+      alert('Member deleted successfully');
+    } catch (err: any) {
+      console.error('Delete error:', err);
+      alert('Failed to delete: ' + err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const filtered = useMemo(() => {
     let result = members;
 
-    // Text search
     const q = query.trim().toLowerCase();
     if (q) {
       result = result.filter(m =>
-        (m.fullName || '').toLowerCase().includes(q) ||
-        (m.email || '').toLowerCase().includes(q) ||
-        (m.id || '').toLowerCase().includes(q) ||
+        m.fullName.toLowerCase().includes(q) ||
+        m.email.toLowerCase().includes(q) ||
         (m.institution || '').toLowerCase().includes(q)
       );
     }
 
-    // Status filter
     if (statusFilter !== 'all') {
       result = result.filter(m => m.verificationStatus === statusFilter);
     }
 
-    // Account type filter
     if (accountTypeFilter !== 'all') {
       result = result.filter(m => m.accountType === accountTypeFilter);
     }
@@ -94,13 +124,13 @@ const Members: React.FC = () => {
   const exportCSV = () => {
     const headers = ['ID', 'Full Name', 'Email', 'Phone', 'Account Type', 'Institution', 'Verification'];
     const rows = filtered.map(m => [
-      m.id || '',
-      `"${(m.fullName || '').replace(/"/g, '""')}"`,
-      m.email || '',
-      m.phone || '',
-      m.accountType || '',
+      m._id,
+      `"${m.fullName.replace(/"/g, '""')}"`,
+      m.email,
+      m.phone,
+      m.accountType,
       `"${(m.institution || '').replace(/"/g, '""')}"`,
-      m.verificationStatus || '',
+      m.verificationStatus,
     ]);
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -112,7 +142,7 @@ const Members: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const getStatusBadge = (status?: string) => {
+  const getStatusBadge = (status: string) => {
     const colors = {
       approved: { bg: '#d1fae5', text: '#065f46', border: '#6ee7b7' },
       pending: { bg: '#fef3c7', text: '#92400e', border: '#fcd34d' },
@@ -132,12 +162,12 @@ const Members: React.FC = () => {
         border: `1px solid ${style.border}`,
         textTransform: 'capitalize'
       }}>
-        {status || 'pending'}
+        {status}
       </span>
     );
   };
 
-  const getAccountTypeBadge = (type?: string) => {
+  const getAccountTypeBadge = (type: string) => {
     const isStudent = type === 'student';
     return (
       <span style={{
@@ -154,6 +184,10 @@ const Members: React.FC = () => {
       </span>
     );
   };
+
+  if (loading) {
+    return <div style={{ padding: '2rem' }}>Loading members...</div>;
+  }
 
   return (
     <>
@@ -185,7 +219,7 @@ const Members: React.FC = () => {
       }}>
         <input
           className="auth-input"
-          placeholder="Search by name, email, ID or institution..."
+          placeholder="Search by name, email, or institution..."
           value={query}
           onChange={e => { setQuery(e.target.value); setPage(1); }}
           style={{ minWidth: 300, maxWidth: 480, flex: 1 }}
@@ -223,7 +257,6 @@ const Members: React.FC = () => {
               setAccountTypeFilter('all');
               setPage(1);
             }}
-            style={{ whiteSpace: 'nowrap' }}
           >
             Clear Filters
           </button>
@@ -287,7 +320,6 @@ const Members: React.FC = () => {
           <table className="history-table">
             <thead>
               <tr>
-                <th>ID</th>
                 <th>Full Name</th>
                 <th>Email</th>
                 <th>Phone</th>
@@ -298,17 +330,50 @@ const Members: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {shown.map((m, idx) => (
-                <tr key={m.id || idx}>
-                  <td style={{ fontWeight: 700, color: 'var(--primary)' }}>{m.id || '—'}</td>
+              {shown.map((m) => (
+                <tr key={m._id}>
                   <td style={{ color: 'var(--text)', fontWeight: 600 }}>{m.fullName}</td>
                   <td style={{ color: 'var(--muted-text)' }}>{m.email}</td>
                   <td style={{ color: 'var(--muted-text)' }}>{m.phone}</td>
                   <td>{getAccountTypeBadge(m.accountType)}</td>
-                  <td>{m.institution}</td>
+                  <td>{m.institution || '—'}</td>
                   <td>{getStatusBadge(m.verificationStatus)}</td>
                   <td>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {m.verificationStatus === 'pending' && (
+                        <>
+                          <button 
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: 12,
+                              border: 'none',
+                              borderRadius: 4,
+                              background: '#059669',
+                              color: 'white',
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => handleApprove(m._id, m.fullName)}
+                            disabled={actionLoading === m._id}
+                          >
+                            {actionLoading === m._id ? '...' : 'Approve'}
+                          </button>
+                          <button 
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: 12,
+                              border: 'none',
+                              borderRadius: 4,
+                              background: '#dc2626',
+                              color: 'white',
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => handleReject(m._id, m.fullName)}
+                            disabled={actionLoading === m._id}
+                          >
+                            {actionLoading === m._id ? '...' : 'Reject'}
+                          </button>
+                        </>
+                      )}
                       <button 
                         style={{
                           padding: '4px 8px',
@@ -317,35 +382,20 @@ const Members: React.FC = () => {
                           borderRadius: 4,
                           background: 'transparent',
                           cursor: 'pointer',
-                          color: 'var(--text)'
+                          color: '#dc2626'
                         }}
-                        onClick={() => alert(`View details for ${m.fullName}`)}
+                        onClick={() => handleDelete(m._id, m.fullName)}
+                        disabled={actionLoading === m._id}
                       >
-                        View
+                        Delete
                       </button>
-                      {m.verificationStatus === 'pending' && (
-                        <button 
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: 12,
-                            border: 'none',
-                            borderRadius: 4,
-                            background: '#059669',
-                            color: 'white',
-                            cursor: 'pointer'
-                          }}
-                          onClick={() => alert(`Approve ${m.fullName}`)}
-                        >
-                          Approve
-                        </button>
-                      )}
                     </div>
                   </td>
                 </tr>
               ))}
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="empty-table" style={{ padding: '40px', textAlign: 'center' }}>
+                  <td colSpan={7} className="empty-table" style={{ padding: '40px', textAlign: 'center' }}>
                     <div style={{ fontSize: 16, color: 'var(--muted-text)' }}>
                       {query || statusFilter !== 'all' || accountTypeFilter !== 'all' 
                         ? 'No members match your filters' 
@@ -377,7 +427,6 @@ const Members: React.FC = () => {
               className="cancel-btn" 
               onClick={() => setPage(p => Math.max(1, p - 1))} 
               disabled={page === 1}
-              style={{ opacity: page === 1 ? 0.5 : 1 }}
             >
               Previous
             </button>
@@ -388,7 +437,6 @@ const Members: React.FC = () => {
               className="save-btn" 
               onClick={() => setPage(p => Math.min(totalPages, p + 1))} 
               disabled={page === totalPages}
-              style={{ opacity: page === totalPages ? 0.5 : 1 }}
             >
               Next
             </button>

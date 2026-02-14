@@ -1,11 +1,12 @@
 // src/pages/Dashboard.tsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StatCard from '../components/dashboard/StatCard';
 import ChartCard from '../components/dashboard/ChartCard';
 import RolePreview from '../components/dashboard/RolePreview';
+import { dashboardAPI } from '../lib/api';
 
-// Sample chart data (unchanged from your original)
+// Sample chart data (replace with real data from backend if available)
 const barData = [
   { name: 'Mon', value: 65 },
   { name: 'Tue', value: 59 },
@@ -26,16 +27,65 @@ const lineData = [
   { name: 'Dec', uv: 3490, pv: 4300 },
 ];
 
+interface DashboardStats {
+  totalMembers: number;
+  pendingVerifications: number;
+  totalRooms: number;
+  availableRooms: number;
+  totalRequests: number;
+  pendingRequests: number;
+  totalReports: number;
+  openReports: number;
+}
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // These are example values — in a real app, fetch them from API or context
-  const pendingNotifications = {
-    users: 6,      // e.g. 6 new unapproved users
-    rooms: 1,      // e.g. 1 room needs attention
-    requests: 14,  // e.g. 14 pending requests
-    reports: 5,    // e.g. 5 new/unresolved reports
+  useEffect(() => {
+    loadStats();
+  }, []);
+
+  const loadStats = async () => {
+    try {
+      setLoading(true);
+      const data = await dashboardAPI.getStats();
+      setStats(data);
+      setError(null);
+    } catch (err: any) {
+      console.error('Failed to load stats:', err);
+      setError(err.message || 'Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <p>Loading dashboard...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '2rem' }}>
+        <div className="form-error" role="alert">
+          {error}
+        </div>
+        <button onClick={loadStats} className="save-btn" style={{ marginTop: '1rem' }}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return <div style={{ padding: '2rem' }}>No data available</div>;
+  }
 
   return (
     <>
@@ -44,34 +94,34 @@ const Dashboard: React.FC = () => {
       <div className="stat-cards">
         <StatCard
           type="users"
-          value="129,983"
+          value={stats.totalMembers.toLocaleString()}
           label="Total Users"
           color="blue"
-          notifications={pendingNotifications.users}
+          notifications={stats.pendingVerifications}
           onClick={() => navigate('/members')}
         />
         <StatCard
           type="rooms"
-          value="731"
+          value={stats.totalRooms.toLocaleString()}
           label="Total Rooms"
           color="green"
-          notifications={pendingNotifications.rooms}
+          notifications={stats.totalRooms - stats.availableRooms}
           onClick={() => navigate('/rooms')}
         />
         <StatCard
           type="requests"
-          value="393"
+          value={stats.totalRequests.toLocaleString()}
           label="Total Requests"
           color="orange"
-          notifications={pendingNotifications.requests}
+          notifications={stats.pendingRequests}
           onClick={() => navigate('/requests')}
         />
         <StatCard
           type="reports"
-          value="19,697"
+          value={stats.totalReports.toLocaleString()}
           label="Total Reports"
           color="gray"
-          notifications={pendingNotifications.reports}
+          notifications={stats.openReports}
           onClick={() => navigate('/reports')}
         />
       </div>
