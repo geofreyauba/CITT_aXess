@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Icons } from '../components/icons';
 import { roomsAPI } from '../lib/api';
+import { Lock, Globe } from 'lucide-react';   // ← React Icons (no emoji)
 
 interface Room {
   _id: string;
@@ -103,15 +104,13 @@ const Rooms: React.FC = () => {
         floorLabel: newFloor || undefined,
         direction: newLocation || undefined,
         description: newNotes || undefined,
-        isPrivate: newIsPrivate,
+        isPrivate: newIsPrivate,        // ← Saved to database
       };
 
       if (editingRoom) {
-        // Update existing
         const updated = await roomsAPI.update(editingRoom._id, roomData);
         setRooms(prev => prev.map(r => (r._id === editingRoom._id ? updated : r)));
       } else {
-        // Add new
         const created = await roomsAPI.create(roomData);
         setRooms(prev => [...prev, created]);
       }
@@ -196,9 +195,14 @@ const Rooms: React.FC = () => {
               <div style={{ marginTop: '0.5rem' }}>
                 {getStatusBadge(room.status)}
               </div>
-              {room.isPrivate && (
-                <div style={{ marginTop: '0.25rem', fontSize: '11px', color: '#991b1b' }}>
-                  🔒 Private
+
+              {room.isPrivate ? (
+                <div style={{ marginTop: '0.25rem', fontSize: '11px', color: '#991b1b', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                  <Lock size={14} /> Private
+                </div>
+              ) : (
+                <div style={{ marginTop: '0.25rem', fontSize: '11px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                  <Globe size={14} /> Public
                 </div>
               )}
             </div>
@@ -311,14 +315,18 @@ const Rooms: React.FC = () => {
               />
             </label>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <input
-                type="checkbox"
-                checked={newIsPrivate}
-                onChange={e => setNewIsPrivate(e.target.checked)}
+            {/* Public / Private Dropdown */}
+            <label>
+              Room Visibility
+              <select
+                value={newIsPrivate ? 'private' : 'public'}
+                onChange={e => setNewIsPrivate(e.target.value === 'private')}
                 disabled={!isEditing}
-              />
-              <span>Private Room (cannot be requested by users)</span>
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ccc' }}
+              >
+                <option value="public">Public (Anyone can request the key)</option>
+                <option value="private">Private (Only authorized members can request)</option>
+              </select>
             </label>
 
             <div className="modal-buttons">
