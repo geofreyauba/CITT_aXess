@@ -1,9 +1,15 @@
 // src/pages/Requests.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icons } from '../components/icons';
 import Badge, { BadgeVariant } from '../components/ui/Badge';
 import { requestsAPI, roomsAPI } from '../lib/api';
-import { Lock } from 'lucide-react';   // ← React Icon for private rooms
+import { Lock, MapPin, Navigation, X } from 'lucide-react';
+
+// ── Point to your Express backend so /uploads/* images load correctly ────────
+const BACKEND = 'http://localhost:5000';
+
+/** Convert server path  /uploads/rooms/x.jpg  →  http://localhost:5000/uploads/rooms/x.jpg */
+const toFullUrl = (path?: string) => (path ? `${BACKEND}${path}` : '');
 
 interface Room {
   _id: string;
@@ -12,22 +18,17 @@ interface Room {
   status: 'available' | 'occupied' | 'requested' | 'maintenance';
   floorLabel?: 'basement' | 'ground' | 'first' | 'second';
   direction?: string;
-  description?: string;
+  directionImage?: string;
+  coordinator?: string;
+  capacity?: number | null;
+  equipment?: string[];
   isPrivate?: boolean;
 }
 
 interface RequestHistory {
   _id: string;
-  userId: {
-    _id: string;
-    fullName: string;
-    phone?: string;
-  };
-  roomId: {
-    _id: string;
-    name: string;
-    code: string;
-  };
+  userId: { _id: string; fullName: string; phone?: string; };
+  roomId: { _id: string; name: string; code: string; };
   carriedItems?: string;
   membership?: string;
   status: 'pending' | 'approved' | 'returned';
@@ -38,601 +39,495 @@ interface RequestHistory {
 
 const formatDateTime = (iso?: string) => {
   if (!iso) return '—';
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString();
-  } catch {
-    return iso;
-  }
+  try { return new Date(iso).toLocaleString(); } catch { return iso; }
 };
 
-const computeDuration = (startIso?: string, endIso?: string) => {
-  if (!startIso || !endIso) return '';
-  const start = new Date(startIso).getTime();
-  const end = new Date(endIso).getTime();
-  if (isNaN(start) || isNaN(end) || end <= start) return '';
-  let diff = Math.floor((end - start) / 1000);
-  const hours = Math.floor(diff / 3600); diff %= 3600;
-  const minutes = Math.floor(diff / 60); const seconds = diff % 60;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
+const computeDuration = (s?: string, e?: string) => {
+  if (!s || !e) return '';
+  const ms = new Date(e).getTime() - new Date(s).getTime();
+  if (ms <= 0) return '';
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  const sec = Math.floor((ms % 60000) / 1000);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
 };
 
 const floorOrder: Room['floorLabel'][] = ['basement', 'ground', 'first', 'second'];
+const floorHeading = (l?: Room['floorLabel']) =>
+  l === 'basement' ? 'Basement' : l === 'ground' ? 'Ground Floor' : l === 'first' ? 'First Floor' : l === 'second' ? 'Second Floor' : 'Floor';
+
+const CAPACITY_BUCKETS = [
+  { label: 'Any capacity',    min: 0,   max: Infinity },
+  { label: '1 – 10 people',  min: 1,   max: 10 },
+  { label: '11 – 30 people', min: 11,  max: 30 },
+  { label: '31 – 60 people', min: 31,  max: 60 },
+  { label: '61 – 100 people',min: 61,  max: 100 },
+  { label: '100+ people',    min: 101, max: Infinity },
+];
 
 const Requests: React.FC = () => {
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [history, setHistory] = useState<RequestHistory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [carriedItems, setCarriedItems] = useState<string>('');
-  const [phoneNumber, setPhoneNumber] = useState<string>('');
-  const [submitting, setSubmitting] = useState(false);
-  const [historyPage, setHistoryPage] = useState(1);
+  const [rooms,           setRooms]           = useState<Room[]>([]);
+  const [history,         setHistory]         = useState<RequestHistory[]>([]);
+  const [loading,         setLoading]         = useState(true);
+  const [selectedRoom,    setSelectedRoom]    = useState<Room | null>(null);
+  const [isModalOpen,     setIsModalOpen]     = useState(false);
+  const [carriedItems,    setCarriedItems]    = useState('');
+  const [phoneNumber,     setPhoneNumber]     = useState('');
+  const [submitting,      setSubmitting]      = useState(false);
+  const [historyPage,     setHistoryPage]     = useState(1);
   const HISTORY_PER_PAGE = 5;
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  // Direction image toggle inside modal
+  const [showDirection, setShowDirection] = useState(false);
+  // Full-screen lightbox for the direction image
+  const [lightboxOpen,  setLightboxOpen]  = useState(false);
+
+  // Filters
+  const [searchQuery,     setSearchQuery]     = useState('');
+  const [filterFloor,     setFilterFloor]     = useState('');
+  const [filterStatus,    setFilterStatus]    = useState('');
+  const [filterCapacity,  setFilterCapacity]  = useState('');
+  const [filterEquipment, setFilterEquipment] = useState('');
+
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [roomsData, historyData] = await Promise.all([
-        roomsAPI.getAll(),
-        requestsAPI.getAll(),
-      ]);
-      setRooms(roomsData);                    // ← ALL rooms (public + private)
-      setHistory(historyData);
+      const [rd, hd] = await Promise.all([roomsAPI.getAll(), requestsAPI.getAll()]);
+      setRooms(rd); setHistory(hd);
     } catch (err: any) {
-      console.error('Failed to load data:', err);
-      alert('Failed to load rooms: ' + err.message);
+      alert('Failed to load data: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
 
   const openRoom = (room: Room) => {
-    setSelectedRoom(room);
-    setCarriedItems('');
-    setPhoneNumber('');
-    setIsModalOpen(true);
+    setSelectedRoom(room); setCarriedItems(''); setPhoneNumber('');
+    setShowDirection(false); setLightboxOpen(false); setIsModalOpen(true);
   };
 
   const closeModal = () => {
-    setIsModalOpen(false);
-    setSelectedRoom(null);
-    setCarriedItems('');
-    setPhoneNumber('');
+    setIsModalOpen(false); setSelectedRoom(null); setShowDirection(false); setLightboxOpen(false);
   };
 
   const handleRequestKey = async (room: Room | null) => {
-    if (!room) return;
-    if (room.isPrivate) {
-      alert('This room is private and can only be requested by authorized members.');
+    if (!room || room.isPrivate || room.status !== 'available') return;
+    const hasUnreturned = history.some(r => r.status === 'pending' || r.status === 'approved');
+    if (hasUnreturned) {
+      const u = history.find(r => r.status === 'pending' || r.status === 'approved');
+      alert(`You have an unreturned room key!\n\nRoom: ${u?.roomId?.name} (${u?.roomId?.code})\nRequested: ${formatDateTime(u?.requestedAt)}\n\nPlease return it first.`);
       return;
     }
-    if (room.status !== 'available') return;
-
-    // Check if user has any unreturned requests
-    const hasUnreturnedRequest = history.some(req => 
-      req.status === 'pending' || req.status === 'approved'
-    );
-
-    if (hasUnreturnedRequest) {
-      const unreturnedRoom = history.find(req => 
-        req.status === 'pending' || req.status === 'approved'
-      );
-      alert(
-        `You have an unreturned room key!\n\n` +
-        `Room: ${unreturnedRoom?.roomId?.name || 'Unknown'} (${unreturnedRoom?.roomId?.code || '—'})\n` +
-        `Requested: ${formatDateTime(unreturnedRoom?.requestedAt)}\n\n` +
-        `Please return/sign out the current key before requesting another room.`
-      );
-      return;
-    }
-
-    if (!carriedItems || !carriedItems.trim()) {
-      alert('Please list the items you will bring before requesting the key.');
-      return;
-    }
-
-    if (!phoneNumber || !phoneNumber.trim()) {
-      alert('Please provide a phone number before requesting the key.');
-      return;
-    }
-
+    if (!carriedItems.trim()) { alert('Please list the items you will bring.'); return; }
+    if (!phoneNumber.trim())  { alert('Please provide a phone number.'); return; }
     try {
       setSubmitting(true);
-      
-      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-      
-      const requestData = {
-        roomId: room._id,
-        carriedItems: carriedItems.trim(),
-        phone: phoneNumber.trim(),
-        membership: currentUser.membership || 'None',
-      };
-
-      await requestsAPI.create(requestData);
-
-      await loadData();
-
-      closeModal();
+      const cu = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      await requestsAPI.create({ roomId: room._id, carriedItems: carriedItems.trim(), phone: phoneNumber.trim(), membership: cu.membership || 'None' });
+      await loadData(); closeModal();
       alert(`Request submitted for ${room.name} (${room.code})\nStatus: Pending approval`);
-    } catch (err: any) {
-      console.error('Request error:', err);
-      alert('Failed to submit request: ' + err.message);
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (err: any) { alert('Failed to submit request: ' + err.message); }
+    finally { setSubmitting(false); }
   };
 
-  const handleSignOut = async (requestId: string) => {
-    if (!confirm('Mark this request as returned / signed out?')) return;
-
-    try {
-      await requestsAPI.returnRequest(requestId);
-      await loadData();
-      alert('Key returned successfully!');
-    } catch (err: any) {
-      console.error('Return error:', err);
-      alert('Failed to return key: ' + err.message);
-    }
+  const handleSignOut = async (id: string) => {
+    if (!confirm('Mark this as returned / signed out?')) return;
+    try { await requestsAPI.returnRequest(id); await loadData(); alert('Key returned successfully!'); }
+    catch (err: any) { alert('Failed to return key: ' + err.message); }
   };
 
-  const getBadgeVariant = (status: string): BadgeVariant => {
-    const roomStatusMap: Record<string, BadgeVariant> = {
-      available: 'available',
-      occupied: 'occupied',
-      requested: 'requested',
-      maintenance: 'maintenance',
-    };
-    return roomStatusMap[status as keyof typeof roomStatusMap] || 'restricted';
-  };
+  const getBadgeVariant = (s: string): BadgeVariant => ({ available: 'available', occupied: 'occupied', requested: 'requested', maintenance: 'maintenance' } as any)[s] || 'restricted';
+  const getHistBadge    = (s: string): BadgeVariant => ({ pending: 'pending', approved: 'approved', returned: 'returned' } as any)[s] || 'pending';
 
-  const getHistoryBadgeVariant = (status: string): BadgeVariant => {
-    const historyStatusMap: Record<string, BadgeVariant> = {
-      pending: 'pending',
-      approved: 'approved',
-      returned: 'returned',
-    };
-    return historyStatusMap[status as keyof typeof historyStatusMap] || 'pending';
-  };
+  const allEquipmentTags = useMemo(() => {
+    const t = new Set<string>(); rooms.forEach(r => (r.equipment||[]).forEach(e => t.add(e))); return [...t].sort();
+  }, [rooms]);
+
+  const filteredRooms = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    const bucket = CAPACITY_BUCKETS.find(b => b.label === filterCapacity);
+    return rooms.filter(r => {
+      if (q && !([r.name, r.code, r.coordinator||'', r.direction||''].join(' ').toLowerCase().includes(q))) return false;
+      if (filterFloor  && (r.floorLabel ?? 'ground') !== filterFloor) return false;
+      if (filterStatus && r.status !== filterStatus) return false;
+      if (bucket && bucket.min > 0) { const c = r.capacity ?? 0; if (c < bucket.min || c > bucket.max) return false; }
+      if (filterEquipment && !(r.equipment ?? []).includes(filterEquipment)) return false;
+      return true;
+    });
+  }, [rooms, searchQuery, filterFloor, filterStatus, filterCapacity, filterEquipment]);
 
   const groupedRooms = floorOrder.map(label => ({
     label,
-    rooms: rooms.filter(r => (r.floorLabel ?? 'ground') === label).sort((a, b) => a.name.localeCompare(b.name)),
+    rooms: filteredRooms.filter(r => (r.floorLabel ?? 'ground') === label).sort((a, b) => a.name.localeCompare(b.name)),
   }));
 
-  const floorHeading = (label?: Room['floorLabel']) =>
-    label === 'basement' ? 'Basement' :
-    label === 'ground' ? 'Ground Floor' :
-    label === 'first' ? 'First Floor' :
-    label === 'second' ? 'Second Floor' : 'Floor';
+  const hasActiveFilters = searchQuery || filterFloor || filterStatus || filterCapacity || filterEquipment;
+  const clearFilters = () => { setSearchQuery(''); setFilterFloor(''); setFilterStatus(''); setFilterCapacity(''); setFilterEquipment(''); };
 
-  if (loading) {
-    return <div style={{ padding: '2rem' }}>Loading rooms...</div>;
-  }
+  if (loading) return <div style={{ padding: '2rem' }}>Loading rooms...</div>;
 
-  // Check if user has any unreturned requests
-  const unreturnedRequests = history.filter(req => 
-    req.status === 'pending' || req.status === 'approved'
-  );
+  const unreturnedRequests   = history.filter(r => r.status === 'pending' || r.status === 'approved');
   const hasUnreturnedRequest = unreturnedRequests.length > 0;
+  const dirImgUrl            = selectedRoom?.directionImage ? toFullUrl(selectedRoom.directionImage) : '';
 
   return (
     <>
       <h1 className="section-title">Request Room Key</h1>
 
-      {/* Unreturned Key Warning */}
+      {/* Unreturned warning */}
       {hasUnreturnedRequest && (
-        <div style={{
-          background: '#fef3c7',
-          border: '2px solid #f59e0b',
-          borderRadius: '12px',
-          padding: '16px 20px',
-          marginBottom: '24px',
-          display: 'flex',
-          alignItems: 'start',
-          gap: '12px'
-        }}>
-          <div style={{
-            background: '#f59e0b',
-            borderRadius: '50%',
-            width: '24px',
-            height: '24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            marginTop: '2px'
-          }}>
-            <span style={{ color: 'white', fontWeight: 'bold', fontSize: '16px' }}>!</span>
+        <div style={{ background:'#fef3c7', border:'2px solid #f59e0b', borderRadius:'12px', padding:'16px 20px', marginBottom:'24px', display:'flex', alignItems:'start', gap:'12px' }}>
+          <div style={{ background:'#f59e0b', borderRadius:'50%', width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:2 }}>
+            <span style={{ color:'white', fontWeight:'bold', fontSize:16 }}>!</span>
           </div>
-          <div style={{ flex: 1 }}>
-            <h3 style={{ 
-              margin: '0 0 8px 0', 
-              color: '#92400e', 
-              fontSize: '16px',
-              fontWeight: 600 
-            }}>
-              Unreturned Room Key
-            </h3>
+          <div style={{ flex:1 }}>
+            <h3 style={{ margin:'0 0 8px', color:'#92400e', fontSize:16, fontWeight:600 }}>Unreturned Room Key</h3>
             {unreturnedRequests.map(req => (
-              <p key={req._id} style={{ 
-                margin: '4px 0', 
-                color: '#78350f',
-                fontSize: '14px',
-                lineHeight: 1.5
-              }}>
-                <strong>{req.roomId?.name || 'Unknown'}</strong> ({req.roomId?.code || '—'}) • 
-                Requested: {formatDateTime(req.requestedAt)} • 
-                Status: <strong>{req.status === 'pending' ? 'Pending' : 'Approved'}</strong>
+              <p key={req._id} style={{ margin:'4px 0', color:'#78350f', fontSize:14, lineHeight:1.5 }}>
+                <strong>{req.roomId?.name}</strong> ({req.roomId?.code}) • Requested: {formatDateTime(req.requestedAt)} • Status: <strong>{req.status === 'pending' ? 'Pending' : 'Approved'}</strong>
               </p>
             ))}
-            <p style={{ 
-              margin: '12px 0 0 0', 
-              color: '#92400e',
-              fontSize: '14px',
-              fontWeight: 500
-            }}>
-              ⚠️ You must return this key before requesting another room.
-            </p>
+            <p style={{ margin:'12px 0 0', color:'#92400e', fontSize:14, fontWeight:500 }}>⚠️ You must return this key before requesting another room.</p>
           </div>
         </div>
       )}
 
-      {rooms.length === 0 ? (
-        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--muted-text)' }}>
-          No rooms available. Please contact administrator.
+      {/* Search + Filters */}
+      <div style={{ background:'var(--white-glass)', border:'1px solid var(--glass-border)', borderRadius:'14px', padding:'16px 20px', marginBottom:'24px', boxShadow:'var(--shadow-soft)' }}>
+        <div style={{ position:'relative', marginBottom:'14px' }}>
+          <Icons.Search size={16} style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:'var(--muted-text)', pointerEvents:'none' }} />
+          <input
+            type="text" placeholder="Search by room name, code, or coordinator…"
+            value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            style={{ width:'100%', paddingLeft:38, paddingRight:12, paddingTop:10, paddingBottom:10, borderRadius:10, border:'1px solid var(--glass-border)', background:'var(--surface)', color:'var(--text)', fontSize:14, boxSizing:'border-box' }}
+          />
         </div>
-      ) : (
-        groupedRooms.map(group => {
-          if (group.rooms.length === 0) return null;
-          
-          return (
-            <section key={group.label} style={{ marginBottom: '1.5rem' }}>
-              <h2 style={{ margin: '0.5rem 0 0.75rem 0', fontSize: '1.1rem', color: 'var(--soft-blue-dark)' }}>
-                {floorHeading(group.label)} ({group.rooms.length})
-              </h2>
+        <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center' }}>
+          {[
+            { val: filterFloor,  set: setFilterFloor,  ph: 'All Floors',    opts: [['basement','Basement'],['ground','Ground Floor'],['first','First Floor'],['second','Second Floor']] },
+            { val: filterStatus, set: setFilterStatus, ph: 'All Statuses',  opts: [['available','Available'],['occupied','Occupied'],['requested','Requested'],['maintenance','Maintenance']] },
+          ].map(({val,set,ph,opts}) => (
+            <select key={ph} value={val} onChange={e => set(e.target.value)}
+              style={{ padding:'8px 12px', borderRadius:8, border:'1px solid var(--glass-border)', background: val ? '#ede9fe' : 'var(--surface)', color: val ? '#4f46e5' : 'var(--muted-text)', fontSize:13, fontWeight: val ? 600 : 400, cursor:'pointer' }}>
+              <option value="">{ph}</option>
+              {opts.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          ))}
+          <select value={filterCapacity} onChange={e => setFilterCapacity(e.target.value)}
+            style={{ padding:'8px 12px', borderRadius:8, border:'1px solid var(--glass-border)', background: filterCapacity ? '#ede9fe' : 'var(--surface)', color: filterCapacity ? '#4f46e5' : 'var(--muted-text)', fontSize:13, fontWeight: filterCapacity ? 600 : 400, cursor:'pointer' }}>
+            <option value="">Any Capacity</option>
+            {CAPACITY_BUCKETS.slice(1).map(b => <option key={b.label} value={b.label}>{b.label}</option>)}
+          </select>
+          {allEquipmentTags.length > 0 && (
+            <select value={filterEquipment} onChange={e => setFilterEquipment(e.target.value)}
+              style={{ padding:'8px 12px', borderRadius:8, border:'1px solid var(--glass-border)', background: filterEquipment ? '#ede9fe' : 'var(--surface)', color: filterEquipment ? '#4f46e5' : 'var(--muted-text)', fontSize:13, fontWeight: filterEquipment ? 600 : 400, cursor:'pointer' }}>
+              <option value="">All Equipment</option>
+              {allEquipmentTags.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          )}
+          {hasActiveFilters && (
+            <button onClick={clearFilters} style={{ padding:'8px 14px', borderRadius:8, border:'1px solid #fca5a5', background:'#fee2e2', color:'#991b1b', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+              ✕ Clear Filters
+            </button>
+          )}
+          <span style={{ marginLeft:'auto', fontSize:13, color:'var(--muted-text)' }}>
+            {filteredRooms.length} {filteredRooms.length === 1 ? 'room' : 'rooms'} found
+          </span>
+        </div>
+      </div>
 
-              <div className="request-grid">
-                {group.rooms.map(room => {
-                  return (
-                    <div
-                      key={room._id}
-                      className={`request-card ${room.status} ${room.isPrivate ? 'private' : ''}`}
-                      role="button"
-                      onClick={() => openRoom(room)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') openRoom(room); }}
-                      tabIndex={0}
-                      aria-label={`${room.name} ${room.code} status ${room.status}`}
-                    >
-                      <div
-                        className="card-status"
-                        style={{ top: 10, right: 'auto', left: 10 }}
-                        onClick={(e) => { e.stopPropagation(); }}
-                      >
-                        <Badge variant={getBadgeVariant(room.status)}>
-                          {room.status === 'available' ? 'Available' :
-                           room.status === 'occupied' ? 'Occupied' :
-                           room.status === 'requested' ? 'Requested' :
-                           'Maintenance'}
-                        </Badge>
-                      </div>
+      {/* Room grid */}
+      {filteredRooms.length === 0 ? (
+        <div style={{ padding:'3rem', textAlign:'center', color:'var(--muted-text)' }}>
+          {rooms.length === 0 ? 'No rooms available. Please contact administrator.' : 'No rooms match your search / filters.'}
+        </div>
+      ) : groupedRooms.map(group => {
+        if (group.rooms.length === 0) return null;
+        return (
+          <section key={group.label} style={{ marginBottom:'1.5rem' }}>
+            <h2 style={{ margin:'0.5rem 0 0.75rem', fontSize:'1.1rem', color:'var(--soft-blue-dark)' }}>
+              {floorHeading(group.label)} ({group.rooms.length})
+            </h2>
+            <div className="request-grid">
+              {group.rooms.map(room => (
+                <div
+                  key={room._id}
+                  className={`request-card ${room.status} ${room.isPrivate ? 'private' : ''}`}
+                  role="button" tabIndex={0}
+                  onClick={() => openRoom(room)}
+                  onKeyDown={e => { if (e.key === 'Enter') openRoom(room); }}
+                  aria-label={`${room.name} ${room.code} – ${room.status}`}
+                >
+                  <div className="card-status" style={{ top:10, right:'auto', left:10 }} onClick={e => e.stopPropagation()}>
+                    <Badge variant={getBadgeVariant(room.status)}>
+                      {room.status === 'available' ? 'Available' : room.status === 'occupied' ? 'Occupied' : room.status === 'requested' ? 'Requested' : 'Maintenance'}
+                    </Badge>
+                  </div>
+                  {room.isPrivate && <div style={{ position:'absolute', top:10, right:10 }}><Lock size={18} color="#991b1b" /></div>}
+                  <div style={{ width:'100%', textAlign:'center', marginTop:'0.6rem' }}>
+                    <h3 className="room-name" style={{ margin:'0.6rem 0 0.2rem' }}>{room.name}</h3>
+                    <p className="room-code"  style={{ margin:0 }}>{room.code}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      })}
 
-                      {room.isPrivate && (
-                        <div style={{ position: 'absolute', top: 10, right: 10 }}>
-                          <Lock size={18} color="#991b1b" />
-                        </div>
-                      )}
-
-                      <div style={{ width: '100%', textAlign: 'center', marginTop: '0.6rem' }}>
-                        <h3 className="room-name" style={{ margin: '0.6rem 0 0.2rem 0' }}>{room.name}</h3>
-                        <p className="room-code" style={{ margin: 0 }}>{room.code}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })
-      )}
-
-      {/* Room Detail Modal */}
+      {/* ── Room detail modal ── */}
       {isModalOpen && selectedRoom && (
         <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxHeight:'90vh', overflowY:'auto' }}>
+
+            <h2 style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
               <span>{selectedRoom.name}</span>
               <Badge variant={getBadgeVariant(selectedRoom.status)}>
-                {selectedRoom.status === 'available' ? 'Available' :
-                 selectedRoom.status === 'occupied' ? 'Occupied' :
-                 selectedRoom.status === 'requested' ? 'Requested' :
-                 'Maintenance'}
+                {selectedRoom.status === 'available' ? 'Available' : selectedRoom.status === 'occupied' ? 'Occupied' : selectedRoom.status === 'requested' ? 'Requested' : 'Maintenance'}
               </Badge>
             </h2>
 
+            {/* Private banner */}
             {selectedRoom.isPrivate && (
-              <div style={{
-                background: '#fee2e2',
-                color: '#991b1b',
-                padding: '12px',
-                borderRadius: '8px',
-                marginBottom: '16px',
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <Lock size={18} />
-                This room is private and only available to authorized members.
+              <div style={{ background:'#fee2e2', color:'#991b1b', padding:12, borderRadius:8, marginBottom:16, fontWeight:500, display:'flex', alignItems:'center', gap:8 }}>
+                <Lock size={18} /> This room is private and only available to authorized members.
               </div>
             )}
 
+            {/* Unreturned key banner */}
             {hasUnreturnedRequest && selectedRoom.status === 'available' && !selectedRoom.isPrivate && (
-              <div style={{
-                background: '#fef3c7',
-                border: '2px solid #f59e0b',
-                color: '#92400e',
-                padding: '12px',
-                borderRadius: '8px',
-                marginBottom: '16px',
-                fontWeight: 500,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <div style={{
-                    background: '#f59e0b',
-                    borderRadius: '50%',
-                    width: '20px',
-                    height: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0
-                  }}>
-                    <span style={{ color: 'white', fontWeight: 'bold', fontSize: '14px' }}>!</span>
+              <div style={{ background:'#fef3c7', border:'2px solid #f59e0b', color:'#92400e', padding:12, borderRadius:8, marginBottom:16, fontWeight:500 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+                  <div style={{ background:'#f59e0b', borderRadius:'50%', width:20, height:20, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <span style={{ color:'white', fontWeight:'bold', fontSize:14 }}>!</span>
                   </div>
-                  <strong>Cannot Request - Unreturned Key</strong>
+                  <strong>Cannot Request — Unreturned Key</strong>
                 </div>
                 {unreturnedRequests.map(req => (
-                  <div key={req._id} style={{ marginLeft: '28px', fontSize: '14px', marginTop: '4px' }}>
-                    You currently have <strong>{req.roomId?.name || 'a room'}</strong> ({req.roomId?.code || '—'}) unreturned.
-                    <br />
-                    Please return it first before requesting another room.
+                  <div key={req._id} style={{ marginLeft:28, fontSize:14, marginTop:4 }}>
+                    You have <strong>{req.roomId?.name}</strong> ({req.roomId?.code}) unreturned. Please return it first.
                   </div>
                 ))}
               </div>
             )}
 
-            <p style={{ color: 'var(--gray-neutral)', marginTop: 6 }}>
-              <strong>Room Code:</strong> {selectedRoom.code}
-            </p>
+            {/* Basic info */}
+            <p style={{ color:'var(--gray-neutral)', marginTop:6 }}><strong>Room Code:</strong> {selectedRoom.code}</p>
+            <p style={{ color:'var(--gray-neutral)', marginTop:6 }}><strong>Floor:</strong> {selectedRoom.floorLabel ? floorHeading(selectedRoom.floorLabel) : '—'}</p>
 
-            <p style={{ color: 'var(--gray-neutral)', marginTop: 6 }}>
-              <strong>Floor:</strong> {selectedRoom.floorLabel ? floorHeading(selectedRoom.floorLabel) : '—'}
-            </p>
-            <p style={{ color: 'var(--gray-neutral)', marginTop: 6 }}>
-              <strong>Location:</strong> {selectedRoom.direction ?? '—'}
-            </p>
-            {selectedRoom.description && (
-              <p style={{ color: 'var(--gray-neutral)', marginTop: 6 }}>
-                <strong>Notes:</strong> {selectedRoom.description}
+            {/* ── Location + Direction Image block ── */}
+            <div style={{ marginTop:10, padding:'14px', background:'#f8fafc', borderRadius:12, border:'1px solid var(--glass-border)' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
+                <MapPin size={15} color="var(--soft-blue)" />
+                <strong style={{ color:'var(--soft-blue-dark)', fontSize:14 }}>Location</strong>
+              </div>
+              <p style={{ margin:0, color:'var(--gray-neutral)', fontSize:14, lineHeight:1.6 }}>
+                {selectedRoom.direction || '—'}
               </p>
+
+              {/* View Direction button — always rendered as a proper clickable button */}
+              {dirImgUrl && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDirection(prev => !prev);
+                  }}
+                  style={{
+                    marginTop: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '9px 18px',
+                    borderRadius: 9,
+                    border: 'none',
+                    background: showDirection
+                      ? 'linear-gradient(135deg,#4f46e5,#7c3aed)'
+                      : 'linear-gradient(135deg,#3b82f6,#4f46e5)',
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 3px 10px rgba(79,70,229,0.35)',
+                    transition: 'all 0.2s ease',
+                    letterSpacing: '0.02em',
+                  }}
+                >
+                  <Navigation size={16} />
+                  {showDirection ? '▲ Hide Direction' : '▼ Press to View the Direction'}
+                </button>
+              )}
+
+              {/* Direction image — revealed when button pressed */}
+              {showDirection && dirImgUrl && (
+                <div style={{ marginTop:12 }}>
+                  <img
+                    src={dirImgUrl}
+                    alt={`Route to ${selectedRoom.name}`}
+                    style={{
+                      width:'100%', maxHeight:340, objectFit:'contain',
+                      borderRadius:10, border:'1px solid var(--glass-border)',
+                      background:'#f1f5f9', display:'block', cursor:'zoom-in',
+                    }}
+                    onClick={(e) => { e.stopPropagation(); setLightboxOpen(true); }}
+                    onError={e => { (e.target as HTMLImageElement).alt = 'Image could not load. Check that the backend server is running.'; }}
+                  />
+                  <p style={{ margin:'6px 0 0', fontSize:11, color:'var(--muted-text)', textAlign:'center' }}>
+                    Follow the route above to reach <strong>{selectedRoom.name}</strong> · Click image to enlarge
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Coordinator */}
+            {selectedRoom.coordinator && (
+              <p style={{ color:'var(--gray-neutral)', marginTop:10 }}><strong>Coordinator:</strong> {selectedRoom.coordinator}</p>
             )}
 
-            <div style={{ marginTop: 12 }}>
-              <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
-                Items you will bring (required)
-              </label>
+            {/* Capacity */}
+            {selectedRoom.capacity != null && (
+              <p style={{ color:'var(--gray-neutral)', marginTop:6 }}><strong>Capacity:</strong> {selectedRoom.capacity} people</p>
+            )}
+
+            {/* Equipment */}
+            {selectedRoom.equipment && selectedRoom.equipment.length > 0 && (
+              <div style={{ marginTop:8 }}>
+                <strong style={{ color:'var(--gray-neutral)', fontSize:14 }}>Equipment / Facilities:</strong>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
+                  {selectedRoom.equipment.map(t => (
+                    <span key={t} style={{ padding:'4px 10px', borderRadius:16, fontSize:12, fontWeight:600, background:'rgba(79,70,229,0.1)', color:'#4f46e5', border:'1px solid rgba(79,70,229,0.2)' }}>{t}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Carried items */}
+            <div style={{ marginTop:14 }}>
+              <label style={{ display:'block', fontWeight:600, marginBottom:6 }}>Items you will bring (required)</label>
               <textarea
-                value={carriedItems}
-                onChange={e => setCarriedItems(e.target.value)}
-                placeholder="E.g. Laptop, phone, external HDD, camera..."
-                rows={3}
-                style={{ 
-                  width: '100%', 
-                  padding: 8, 
-                  borderRadius: 8, 
-                  border: '1px solid rgba(15,23,42,0.08)' 
-                }}
+                value={carriedItems} onChange={e => setCarriedItems(e.target.value)}
+                placeholder="E.g. Laptop, phone, external HDD…" rows={3}
+                style={{ width:'100%', padding:8, borderRadius:8, border:'1px solid rgba(15,23,42,0.08)' }}
                 disabled={submitting || selectedRoom.isPrivate || hasUnreturnedRequest}
               />
             </div>
 
-            <div style={{ marginTop: 12 }}>
-              <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
-                Phone Number (required)
-              </label>
+            {/* Phone */}
+            <div style={{ marginTop:12 }}>
+              <label style={{ display:'block', fontWeight:600, marginBottom:6 }}>Phone Number (required)</label>
               <input
-                type="tel"
-                value={phoneNumber}
-                onChange={e => setPhoneNumber(e.target.value)}
+                type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)}
                 placeholder="E.g. +255 123 456 789"
-                style={{ 
-                  width: '100%', 
-                  padding: 8, 
-                  borderRadius: 8, 
-                  border: '1px solid rgba(15,23,42,0.08)' 
-                }}
+                style={{ width:'100%', padding:8, borderRadius:8, border:'1px solid rgba(15,23,42,0.08)' }}
                 disabled={submitting || selectedRoom.isPrivate || hasUnreturnedRequest}
               />
             </div>
 
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
-              <button className="cancel-btn" onClick={closeModal} disabled={submitting}>
-                Close
-              </button>
-
+            <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:20 }}>
+              <button className="cancel-btn" onClick={closeModal} disabled={submitting}>Close</button>
               <button
                 className="save-btn"
-                onClick={() => handleRequestKey(selectedRoom)}
+                onClick={(e) => { e.stopPropagation(); handleRequestKey(selectedRoom); }}
                 disabled={selectedRoom.status !== 'available' || submitting || selectedRoom.isPrivate || hasUnreturnedRequest}
                 style={{
                   opacity: (selectedRoom.status === 'available' && !selectedRoom.isPrivate && !submitting && !hasUnreturnedRequest) ? 1 : 0.6,
-                  cursor: (selectedRoom.status === 'available' && !selectedRoom.isPrivate && !submitting && !hasUnreturnedRequest) ? 'pointer' : 'not-allowed'
+                  cursor:  (selectedRoom.status === 'available' && !selectedRoom.isPrivate && !submitting && !hasUnreturnedRequest) ? 'pointer' : 'not-allowed',
                 }}
               >
-                {selectedRoom.isPrivate ? 'Private Room' :
-                 hasUnreturnedRequest ? 'Return Key First' :
-                 submitting ? 'Submitting...' : 'Request Key'}
+                {selectedRoom.isPrivate ? 'Private Room' : hasUnreturnedRequest ? 'Return Key First' : submitting ? 'Submitting…' : 'Request Key'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* History Table */}
-      <div className="history-section" style={{ marginTop: 32 }}>
-        <h2 className="history-title">Your Request History</h2>
+      {/* ── Full-screen lightbox for direction image ── */}
+      {lightboxOpen && dirImgUrl && (
+        <div
+          onClick={() => setLightboxOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.88)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '20px',
+          }}
+        >
+          <button
+            onClick={() => setLightboxOpen(false)}
+            style={{
+              position: 'absolute', top: 16, right: 16,
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'rgba(255,255,255,0.15)', border: 'none',
+              color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', zIndex: 10000,
+            }}
+          >
+            <X size={20} />
+          </button>
+          <img
+            src={dirImgUrl}
+            alt="Direction route (full screen)"
+            style={{ maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 12 }}
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
 
+      {/* ── History Table ── */}
+      <div className="history-section" style={{ marginTop:32 }}>
+        <h2 className="history-title">Your Request History</h2>
         <div className="history-table-container">
           <table className="history-table">
             <thead>
               <tr>
-                <th>Room</th>
-                <th>Requester</th>
-                <th>Phone</th>
-                <th>Items</th>
-                <th>Requested at</th>
-                <th>Status</th>
-                <th>Time Taken</th>
-                <th>Returned</th>
-                <th>Action</th>
+                <th>Room</th><th>Requester</th><th>Phone</th><th>Items</th>
+                <th>Requested at</th><th>Status</th><th>Time Taken</th><th>Returned</th><th>Action</th>
               </tr>
             </thead>
             <tbody>
               {history.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="empty-table">
-                    No request history yet
-                  </td>
-                </tr>
+                <tr><td colSpan={9} className="empty-table">No request history yet</td></tr>
               ) : (
-                history
-                  .slice((historyPage - 1) * HISTORY_PER_PAGE, historyPage * HISTORY_PER_PAGE)
-                  .map(req => (
-                    <tr key={req._id}>
-                      <td>
-                        {req.roomId?.name || 'Unknown'} ({req.roomId?.code || '—'})
-                      </td>
-                      <td style={{ fontWeight: 500 }}>
-                        {req.userId?.fullName || 'Unknown User'}
-                      </td>
-                      <td>
-                        {req.userId?.phone || '—'}
-                      </td>
-                      <td style={{ maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {req.carriedItems || '—'}
-                      </td>
-                      <td>{formatDateTime(req.requestedAt)}</td>
-                      <td>
-                        <Badge variant={getHistoryBadgeVariant(req.status)}>
-                          {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
-                        </Badge>
-                      </td>
-                      <td>{computeDuration(req.requestedAt, req.returnedAt) || '—'}</td>
-                      <td>{formatDateTime(req.returnedAt) || '—'}</td>
-                      <td>
-                        {req.status === 'pending' && (
-                          <button
-                            className="signout-btn"
-                            onClick={() => handleSignOut(req._id)}
-                          >
-                            Sign Out
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))
+                history.slice((historyPage-1)*HISTORY_PER_PAGE, historyPage*HISTORY_PER_PAGE).map(req => (
+                  <tr key={req._id}>
+                    <td>{req.roomId?.name} ({req.roomId?.code || '—'})</td>
+                    <td style={{ fontWeight:500 }}>{req.userId?.fullName || 'Unknown'}</td>
+                    <td>{req.userId?.phone || '—'}</td>
+                    <td style={{ maxWidth:220, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{req.carriedItems || '—'}</td>
+                    <td>{formatDateTime(req.requestedAt)}</td>
+                    <td><Badge variant={getHistBadge(req.status)}>{req.status.charAt(0).toUpperCase()+req.status.slice(1)}</Badge></td>
+                    <td>{computeDuration(req.requestedAt, req.returnedAt) || '—'}</td>
+                    <td>{formatDateTime(req.returnedAt) || '—'}</td>
+                    <td>{req.status === 'pending' && <button className="signout-btn" onClick={() => handleSignOut(req._id)}>Sign Out</button>}</td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
         </div>
 
-        {/* Pagination controls */}
         {history.length > HISTORY_PER_PAGE && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginTop: '16px',
-            padding: '0 4px',
-          }}>
-            {/* Page info */}
-            <span style={{ fontSize: '14px', color: 'var(--muted-text)' }}>
-              Showing {(historyPage - 1) * HISTORY_PER_PAGE + 1}–{Math.min(historyPage * HISTORY_PER_PAGE, history.length)} of {history.length} requests
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:16, padding:'0 4px' }}>
+            <span style={{ fontSize:14, color:'var(--muted-text)' }}>
+              Showing {(historyPage-1)*HISTORY_PER_PAGE+1}–{Math.min(historyPage*HISTORY_PER_PAGE,history.length)} of {history.length} requests
             </span>
-
-            {/* Buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button
-                onClick={() => setHistoryPage(p => p - 1)}
-                disabled={historyPage === 1}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '7px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--glass-border)',
-                  background: historyPage === 1 ? 'var(--gray-light)' : 'var(--white-glass)',
-                  color: historyPage === 1 ? 'var(--muted-text)' : 'var(--soft-blue-dark)',
-                  fontWeight: 500,
-                  fontSize: '14px',
-                  cursor: historyPage === 1 ? 'not-allowed' : 'pointer',
-                  opacity: historyPage === 1 ? 0.5 : 1,
-                  transition: 'all 0.15s',
-                }}
-              >
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <button onClick={() => setHistoryPage(p=>p-1)} disabled={historyPage===1}
+                style={{ padding:'7px 16px', borderRadius:8, border:'1px solid var(--glass-border)', background: historyPage===1?'var(--gray-light)':'var(--white-glass)', color: historyPage===1?'var(--muted-text)':'var(--soft-blue-dark)', fontWeight:500, fontSize:14, cursor: historyPage===1?'not-allowed':'pointer', opacity: historyPage===1?0.5:1 }}>
                 ← Previous
               </button>
-
-              {/* Page numbers */}
-              {Array.from({ length: Math.ceil(history.length / HISTORY_PER_PAGE) }, (_, i) => i + 1).map(page => (
-                <button
-                  key={page}
-                  onClick={() => setHistoryPage(page)}
-                  style={{
-                    width: '34px',
-                    height: '34px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--glass-border)',
-                    background: page === historyPage ? 'var(--soft-blue)' : 'var(--white-glass)',
-                    color: page === historyPage ? 'white' : 'var(--soft-blue-dark)',
-                    fontWeight: page === historyPage ? 700 : 500,
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {page}
+              {Array.from({length:Math.ceil(history.length/HISTORY_PER_PAGE)},(_,i)=>i+1).map(pg=>(
+                <button key={pg} onClick={()=>setHistoryPage(pg)}
+                  style={{ width:34, height:34, borderRadius:8, border:'1px solid var(--glass-border)', background: pg===historyPage?'var(--soft-blue)':'var(--white-glass)', color: pg===historyPage?'white':'var(--soft-blue-dark)', fontWeight: pg===historyPage?700:500, fontSize:14, cursor:'pointer' }}>
+                  {pg}
                 </button>
               ))}
-
-              <button
-                onClick={() => setHistoryPage(p => p + 1)}
-                disabled={historyPage === Math.ceil(history.length / HISTORY_PER_PAGE)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '7px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--glass-border)',
-                  background: historyPage === Math.ceil(history.length / HISTORY_PER_PAGE) ? 'var(--gray-light)' : 'var(--white-glass)',
-                  color: historyPage === Math.ceil(history.length / HISTORY_PER_PAGE) ? 'var(--muted-text)' : 'var(--soft-blue-dark)',
-                  fontWeight: 500,
-                  fontSize: '14px',
-                  cursor: historyPage === Math.ceil(history.length / HISTORY_PER_PAGE) ? 'not-allowed' : 'pointer',
-                  opacity: historyPage === Math.ceil(history.length / HISTORY_PER_PAGE) ? 0.5 : 1,
-                  transition: 'all 0.15s',
-                }}
-              >
+              <button onClick={() => setHistoryPage(p=>p+1)} disabled={historyPage===Math.ceil(history.length/HISTORY_PER_PAGE)}
+                style={{ padding:'7px 16px', borderRadius:8, border:'1px solid var(--glass-border)', background: historyPage===Math.ceil(history.length/HISTORY_PER_PAGE)?'var(--gray-light)':'var(--white-glass)', color: historyPage===Math.ceil(history.length/HISTORY_PER_PAGE)?'var(--muted-text)':'var(--soft-blue-dark)', fontWeight:500, fontSize:14, cursor: historyPage===Math.ceil(history.length/HISTORY_PER_PAGE)?'not-allowed':'pointer', opacity: historyPage===Math.ceil(history.length/HISTORY_PER_PAGE)?0.5:1 }}>
                 Next →
               </button>
             </div>

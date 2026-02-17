@@ -32,6 +32,7 @@ const Header: React.FC<HeaderProps> = ({ role = 'Admin' }) => {
   // ── read user from localStorage ─────────────────────────────────────────
   const [firstName, setFirstName] = useState('User');
   const [membership, setMembership] = useState('');
+  const [regNo, setRegNo] = useState('');
 
   useEffect(() => {
     const readUser = () => {
@@ -43,6 +44,7 @@ const Header: React.FC<HeaderProps> = ({ role = 'Admin' }) => {
           const first = (u.fullName || '').trim().split(' ')[0] || 'User';
           setFirstName(first);
           setMembership(u.membership || '');
+          setRegNo(u.regNo || u.registrationNumber || u.reg_no || '');
         }
       } catch {}
     };
@@ -125,6 +127,10 @@ const Header: React.FC<HeaderProps> = ({ role = 'Admin' }) => {
             {membership && membership !== 'None' && membership !== 'No Membership'
               ? membership
               : 'No Club Membership'}
+          </div>
+          {/* Registration number */}
+          <div className="user-id">
+            RegNo: {regNo || 'N/A'}
           </div>
         </div>
       </div>
