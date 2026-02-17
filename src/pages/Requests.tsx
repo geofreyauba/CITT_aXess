@@ -1,8 +1,9 @@
-// src/pages/Requests.tsx - User's request interface with real API
+// src/pages/Requests.tsx
 import React, { useState, useEffect } from 'react';
 import { Icons } from '../components/icons';
 import Badge, { BadgeVariant } from '../components/ui/Badge';
 import { requestsAPI, roomsAPI } from '../lib/api';
+import { Lock } from 'lucide-react';   // ← React Icon for private rooms
 
 interface Room {
   _id: string;
@@ -67,7 +68,10 @@ const Requests: React.FC = () => {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [carriedItems, setCarriedItems] = useState<string>('');
+  const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const HISTORY_PER_PAGE = 5;
 
   useEffect(() => {
     loadData();
@@ -80,7 +84,7 @@ const Requests: React.FC = () => {
         roomsAPI.getAll(),
         requestsAPI.getAll(),
       ]);
-      setRooms(roomsData.filter((r: Room) => !r.isPrivate)); // Only show non-private rooms
+      setRooms(roomsData);                    // ← ALL rooms (public + private)
       setHistory(historyData);
     } catch (err: any) {
       console.error('Failed to load data:', err);
@@ -93,6 +97,7 @@ const Requests: React.FC = () => {
   const openRoom = (room: Room) => {
     setSelectedRoom(room);
     setCarriedItems('');
+    setPhoneNumber('');
     setIsModalOpen(true);
   };
 
@@ -100,33 +105,59 @@ const Requests: React.FC = () => {
     setIsModalOpen(false);
     setSelectedRoom(null);
     setCarriedItems('');
+    setPhoneNumber('');
   };
 
   const handleRequestKey = async (room: Room | null) => {
     if (!room) return;
+    if (room.isPrivate) {
+      alert('This room is private and can only be requested by authorized members.');
+      return;
+    }
     if (room.status !== 'available') return;
+
+    // Check if user has any unreturned requests
+    const hasUnreturnedRequest = history.some(req => 
+      req.status === 'pending' || req.status === 'approved'
+    );
+
+    if (hasUnreturnedRequest) {
+      const unreturnedRoom = history.find(req => 
+        req.status === 'pending' || req.status === 'approved'
+      );
+      alert(
+        `You have an unreturned room key!\n\n` +
+        `Room: ${unreturnedRoom?.roomId?.name || 'Unknown'} (${unreturnedRoom?.roomId?.code || '—'})\n` +
+        `Requested: ${formatDateTime(unreturnedRoom?.requestedAt)}\n\n` +
+        `Please return/sign out the current key before requesting another room.`
+      );
+      return;
+    }
 
     if (!carriedItems || !carriedItems.trim()) {
       alert('Please list the items you will bring before requesting the key.');
       return;
     }
 
+    if (!phoneNumber || !phoneNumber.trim()) {
+      alert('Please provide a phone number before requesting the key.');
+      return;
+    }
+
     try {
       setSubmitting(true);
       
-      // Get current user info
       const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
       
       const requestData = {
         roomId: room._id,
         carriedItems: carriedItems.trim(),
-        phone: currentUser.phone || '',
+        phone: phoneNumber.trim(),
         membership: currentUser.membership || 'None',
       };
 
       await requestsAPI.create(requestData);
 
-      // Reload data to get updated rooms and history
       await loadData();
 
       closeModal();
@@ -144,7 +175,7 @@ const Requests: React.FC = () => {
 
     try {
       await requestsAPI.returnRequest(requestId);
-      await loadData(); // Reload to update status
+      await loadData();
       alert('Key returned successfully!');
     } catch (err: any) {
       console.error('Return error:', err);
@@ -186,9 +217,73 @@ const Requests: React.FC = () => {
     return <div style={{ padding: '2rem' }}>Loading rooms...</div>;
   }
 
+  // Check if user has any unreturned requests
+  const unreturnedRequests = history.filter(req => 
+    req.status === 'pending' || req.status === 'approved'
+  );
+  const hasUnreturnedRequest = unreturnedRequests.length > 0;
+
   return (
     <>
       <h1 className="section-title">Request Room Key</h1>
+
+      {/* Unreturned Key Warning */}
+      {hasUnreturnedRequest && (
+        <div style={{
+          background: '#fef3c7',
+          border: '2px solid #f59e0b',
+          borderRadius: '12px',
+          padding: '16px 20px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'start',
+          gap: '12px'
+        }}>
+          <div style={{
+            background: '#f59e0b',
+            borderRadius: '50%',
+            width: '24px',
+            height: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            marginTop: '2px'
+          }}>
+            <span style={{ color: 'white', fontWeight: 'bold', fontSize: '16px' }}>!</span>
+          </div>
+          <div style={{ flex: 1 }}>
+            <h3 style={{ 
+              margin: '0 0 8px 0', 
+              color: '#92400e', 
+              fontSize: '16px',
+              fontWeight: 600 
+            }}>
+              Unreturned Room Key
+            </h3>
+            {unreturnedRequests.map(req => (
+              <p key={req._id} style={{ 
+                margin: '4px 0', 
+                color: '#78350f',
+                fontSize: '14px',
+                lineHeight: 1.5
+              }}>
+                <strong>{req.roomId?.name || 'Unknown'}</strong> ({req.roomId?.code || '—'}) • 
+                Requested: {formatDateTime(req.requestedAt)} • 
+                Status: <strong>{req.status === 'pending' ? 'Pending' : 'Approved'}</strong>
+              </p>
+            ))}
+            <p style={{ 
+              margin: '12px 0 0 0', 
+              color: '#92400e',
+              fontSize: '14px',
+              fontWeight: 500
+            }}>
+              ⚠️ You must return this key before requesting another room.
+            </p>
+          </div>
+        </div>
+      )}
 
       {rooms.length === 0 ? (
         <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--muted-text)' }}>
@@ -205,35 +300,43 @@ const Requests: React.FC = () => {
               </h2>
 
               <div className="request-grid">
-                {group.rooms.map(room => (
-                  <div
-                    key={room._id}
-                    className={`request-card ${room.status}`}
-                    role="button"
-                    onClick={() => openRoom(room)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') openRoom(room); }}
-                    tabIndex={0}
-                    aria-label={`${room.name} ${room.code} status ${room.status}`}
-                  >
+                {group.rooms.map(room => {
+                  return (
                     <div
-                      className="card-status"
-                      style={{ top: 10, right: 'auto', left: 10 }}
-                      onClick={(e) => { e.stopPropagation(); }}
+                      key={room._id}
+                      className={`request-card ${room.status} ${room.isPrivate ? 'private' : ''}`}
+                      role="button"
+                      onClick={() => openRoom(room)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') openRoom(room); }}
+                      tabIndex={0}
+                      aria-label={`${room.name} ${room.code} status ${room.status}`}
                     >
-                      <Badge variant={getBadgeVariant(room.status)}>
-                        {room.status === 'available' ? 'Available' :
-                         room.status === 'occupied' ? 'Occupied' :
-                         room.status === 'requested' ? 'Requested' :
-                         'Maintenance'}
-                      </Badge>
-                    </div>
+                      <div
+                        className="card-status"
+                        style={{ top: 10, right: 'auto', left: 10 }}
+                        onClick={(e) => { e.stopPropagation(); }}
+                      >
+                        <Badge variant={getBadgeVariant(room.status)}>
+                          {room.status === 'available' ? 'Available' :
+                           room.status === 'occupied' ? 'Occupied' :
+                           room.status === 'requested' ? 'Requested' :
+                           'Maintenance'}
+                        </Badge>
+                      </div>
 
-                    <div style={{ width: '100%', textAlign: 'center', marginTop: '0.6rem' }}>
-                      <h3 className="room-name" style={{ margin: '0.6rem 0 0.2rem 0' }}>{room.name}</h3>
-                      <p className="room-code" style={{ margin: 0 }}>{room.code}</p>
+                      {room.isPrivate && (
+                        <div style={{ position: 'absolute', top: 10, right: 10 }}>
+                          <Lock size={18} color="#991b1b" />
+                        </div>
+                      )}
+
+                      <div style={{ width: '100%', textAlign: 'center', marginTop: '0.6rem' }}>
+                        <h3 className="room-name" style={{ margin: '0.6rem 0 0.2rem 0' }}>{room.name}</h3>
+                        <p className="room-code" style={{ margin: 0 }}>{room.code}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           );
@@ -253,6 +356,58 @@ const Requests: React.FC = () => {
                  'Maintenance'}
               </Badge>
             </h2>
+
+            {selectedRoom.isPrivate && (
+              <div style={{
+                background: '#fee2e2',
+                color: '#991b1b',
+                padding: '12px',
+                borderRadius: '8px',
+                marginBottom: '16px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <Lock size={18} />
+                This room is private and only available to authorized members.
+              </div>
+            )}
+
+            {hasUnreturnedRequest && selectedRoom.status === 'available' && !selectedRoom.isPrivate && (
+              <div style={{
+                background: '#fef3c7',
+                border: '2px solid #f59e0b',
+                color: '#92400e',
+                padding: '12px',
+                borderRadius: '8px',
+                marginBottom: '16px',
+                fontWeight: 500,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <div style={{
+                    background: '#f59e0b',
+                    borderRadius: '50%',
+                    width: '20px',
+                    height: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
+                    <span style={{ color: 'white', fontWeight: 'bold', fontSize: '14px' }}>!</span>
+                  </div>
+                  <strong>Cannot Request - Unreturned Key</strong>
+                </div>
+                {unreturnedRequests.map(req => (
+                  <div key={req._id} style={{ marginLeft: '28px', fontSize: '14px', marginTop: '4px' }}>
+                    You currently have <strong>{req.roomId?.name || 'a room'}</strong> ({req.roomId?.code || '—'}) unreturned.
+                    <br />
+                    Please return it first before requesting another room.
+                  </div>
+                ))}
+              </div>
+            )}
 
             <p style={{ color: 'var(--gray-neutral)', marginTop: 6 }}>
               <strong>Room Code:</strong> {selectedRoom.code}
@@ -285,11 +440,27 @@ const Requests: React.FC = () => {
                   borderRadius: 8, 
                   border: '1px solid rgba(15,23,42,0.08)' 
                 }}
-                disabled={submitting}
+                disabled={submitting || selectedRoom.isPrivate || hasUnreturnedRequest}
               />
-              <p style={{ margin: '6px 0 0 0', color: 'var(--gray-neutral)', fontSize: 12 }}>
-                Please declare items to help management prevent loss/theft.
-              </p>
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+                Phone Number (required)
+              </label>
+              <input
+                type="tel"
+                value={phoneNumber}
+                onChange={e => setPhoneNumber(e.target.value)}
+                placeholder="E.g. +255 123 456 789"
+                style={{ 
+                  width: '100%', 
+                  padding: 8, 
+                  borderRadius: 8, 
+                  border: '1px solid rgba(15,23,42,0.08)' 
+                }}
+                disabled={submitting || selectedRoom.isPrivate || hasUnreturnedRequest}
+              />
             </div>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
@@ -300,21 +471,15 @@ const Requests: React.FC = () => {
               <button
                 className="save-btn"
                 onClick={() => handleRequestKey(selectedRoom)}
-                disabled={selectedRoom.status !== 'available' || submitting}
+                disabled={selectedRoom.status !== 'available' || submitting || selectedRoom.isPrivate || hasUnreturnedRequest}
                 style={{
-                  opacity: selectedRoom.status === 'available' && !submitting ? 1 : 0.6,
-                  cursor: selectedRoom.status === 'available' && !submitting ? 'pointer' : 'not-allowed'
+                  opacity: (selectedRoom.status === 'available' && !selectedRoom.isPrivate && !submitting && !hasUnreturnedRequest) ? 1 : 0.6,
+                  cursor: (selectedRoom.status === 'available' && !selectedRoom.isPrivate && !submitting && !hasUnreturnedRequest) ? 'pointer' : 'not-allowed'
                 }}
               >
-                {submitting ? 'Submitting...' : (
-                  selectedRoom.status === 'available' ? (
-                    <>
-                      <Icons.Key size={14} /> Request Key
-                    </>
-                  ) : (
-                    'Unavailable'
-                  )
-                )}
+                {selectedRoom.isPrivate ? 'Private Room' :
+                 hasUnreturnedRequest ? 'Return Key First' :
+                 submitting ? 'Submitting...' : 'Request Key'}
               </button>
             </div>
           </div>
@@ -330,6 +495,8 @@ const Requests: React.FC = () => {
             <thead>
               <tr>
                 <th>Room</th>
+                <th>Requester</th>
+                <th>Phone</th>
                 <th>Items</th>
                 <th>Requested at</th>
                 <th>Status</th>
@@ -339,44 +506,138 @@ const Requests: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {history.map(req => (
-                <tr key={req._id}>
-                  <td>
-                    {req.roomId?.name || 'Unknown'} ({req.roomId?.code || '—'})
-                  </td>
-                  <td style={{ maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {req.carriedItems || '—'}
-                  </td>
-                  <td>{formatDateTime(req.requestedAt)}</td>
-                  <td>
-                    <Badge variant={getHistoryBadgeVariant(req.status)}>
-                      {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
-                    </Badge>
-                  </td>
-                  <td>{computeDuration(req.requestedAt, req.returnedAt) || '—'}</td>
-                  <td>{formatDateTime(req.returnedAt) || '—'}</td>
-                  <td>
-                    {req.status === 'pending' && (
-                      <button
-                        className="signout-btn"
-                        onClick={() => handleSignOut(req._id)}
-                      >
-                        Sign Out
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {history.length === 0 && (
+              {history.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="empty-table">
+                  <td colSpan={9} className="empty-table">
                     No request history yet
                   </td>
                 </tr>
+              ) : (
+                history
+                  .slice((historyPage - 1) * HISTORY_PER_PAGE, historyPage * HISTORY_PER_PAGE)
+                  .map(req => (
+                    <tr key={req._id}>
+                      <td>
+                        {req.roomId?.name || 'Unknown'} ({req.roomId?.code || '—'})
+                      </td>
+                      <td style={{ fontWeight: 500 }}>
+                        {req.userId?.fullName || 'Unknown User'}
+                      </td>
+                      <td>
+                        {req.userId?.phone || '—'}
+                      </td>
+                      <td style={{ maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {req.carriedItems || '—'}
+                      </td>
+                      <td>{formatDateTime(req.requestedAt)}</td>
+                      <td>
+                        <Badge variant={getHistoryBadgeVariant(req.status)}>
+                          {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
+                        </Badge>
+                      </td>
+                      <td>{computeDuration(req.requestedAt, req.returnedAt) || '—'}</td>
+                      <td>{formatDateTime(req.returnedAt) || '—'}</td>
+                      <td>
+                        {req.status === 'pending' && (
+                          <button
+                            className="signout-btn"
+                            onClick={() => handleSignOut(req._id)}
+                          >
+                            Sign Out
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
               )}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination controls */}
+        {history.length > HISTORY_PER_PAGE && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginTop: '16px',
+            padding: '0 4px',
+          }}>
+            {/* Page info */}
+            <span style={{ fontSize: '14px', color: 'var(--muted-text)' }}>
+              Showing {(historyPage - 1) * HISTORY_PER_PAGE + 1}–{Math.min(historyPage * HISTORY_PER_PAGE, history.length)} of {history.length} requests
+            </span>
+
+            {/* Buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                onClick={() => setHistoryPage(p => p - 1)}
+                disabled={historyPage === 1}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--glass-border)',
+                  background: historyPage === 1 ? 'var(--gray-light)' : 'var(--white-glass)',
+                  color: historyPage === 1 ? 'var(--muted-text)' : 'var(--soft-blue-dark)',
+                  fontWeight: 500,
+                  fontSize: '14px',
+                  cursor: historyPage === 1 ? 'not-allowed' : 'pointer',
+                  opacity: historyPage === 1 ? 0.5 : 1,
+                  transition: 'all 0.15s',
+                }}
+              >
+                ← Previous
+              </button>
+
+              {/* Page numbers */}
+              {Array.from({ length: Math.ceil(history.length / HISTORY_PER_PAGE) }, (_, i) => i + 1).map(page => (
+                <button
+                  key={page}
+                  onClick={() => setHistoryPage(page)}
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--glass-border)',
+                    background: page === historyPage ? 'var(--soft-blue)' : 'var(--white-glass)',
+                    color: page === historyPage ? 'white' : 'var(--soft-blue-dark)',
+                    fontWeight: page === historyPage ? 700 : 500,
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {page}
+                </button>
+              ))}
+
+              <button
+                onClick={() => setHistoryPage(p => p + 1)}
+                disabled={historyPage === Math.ceil(history.length / HISTORY_PER_PAGE)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--glass-border)',
+                  background: historyPage === Math.ceil(history.length / HISTORY_PER_PAGE) ? 'var(--gray-light)' : 'var(--white-glass)',
+                  color: historyPage === Math.ceil(history.length / HISTORY_PER_PAGE) ? 'var(--muted-text)' : 'var(--soft-blue-dark)',
+                  fontWeight: 500,
+                  fontSize: '14px',
+                  cursor: historyPage === Math.ceil(history.length / HISTORY_PER_PAGE) ? 'not-allowed' : 'pointer',
+                  opacity: historyPage === Math.ceil(history.length / HISTORY_PER_PAGE) ? 0.5 : 1,
+                  transition: 'all 0.15s',
+                }}
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

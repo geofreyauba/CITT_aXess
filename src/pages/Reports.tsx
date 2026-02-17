@@ -10,6 +10,7 @@ interface KeyRequest {
     _id: string;
     fullName: string;
     phone?: string;
+    email?: string;
   };
   roomId: {
     _id: string;
@@ -18,6 +19,7 @@ interface KeyRequest {
   };
   carriedItems?: string;
   membership?: string;
+  phone?: string;
   status: 'pending' | 'approved' | 'returned';
   requestedAt: string;
   returnedAt?: string;
@@ -54,7 +56,7 @@ const Reports: React.FC = () => {
   const loadRequests = async () => {
     try {
       setLoading(true);
-      const data = await requestsAPI.getAll();
+      const data = await requestsAPI.getAllRequests();
       setRequests(data);
     } catch (err: any) {
       console.error('Failed to load requests:', err);
@@ -72,9 +74,13 @@ const Reports: React.FC = () => {
         if (q) {
           return (
             r.userId?.fullName?.toLowerCase().includes(q) ||
+            r.userId?.email?.toLowerCase().includes(q) ||
+            r.userId?.phone?.toLowerCase().includes(q) ||
+            r.phone?.toLowerCase().includes(q) ||
             r.roomId?.name?.toLowerCase().includes(q) ||
             r.roomId?.code?.toLowerCase().includes(q) ||
-            (r.carriedItems || '').toLowerCase().includes(q)
+            (r.carriedItems || '').toLowerCase().includes(q) ||
+            (r.membership || '').toLowerCase().includes(q)
           );
         }
         return true;
@@ -116,14 +122,18 @@ const Reports: React.FC = () => {
   const maxUsage = roomUsage.length ? Math.max(...roomUsage.map(r => r.count)) : 1;
 
   const exportCSV = () => {
-    const headers = ['ID', 'Requested By', 'Room', 'Carried Items', 'Date', 'Status'];
+    const headers = ['ID', 'Requested By', 'Email', 'Phone', 'Room', 'Carried Items', 'Membership', 'Date', 'Status', 'Returned At'];
     const rows = filtered.map(r => [
       r._id,
       `"${r.userId?.fullName || 'Unknown'}"`,
+      `"${r.userId?.email || ''}"`,
+      `"${r.phone || r.userId?.phone || ''}"`,
       `"${r.roomId?.name || 'Unknown'} (${r.roomId?.code || ''})"`,
       `"${(r.carriedItems || '').replace(/"/g, '""')}"`,
+      `"${r.membership || ''}"`,
       r.requestedAt,
       r.status,
+      r.returnedAt || '',
     ]);
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -194,7 +204,7 @@ const Reports: React.FC = () => {
               className="modal-input"
               value={query}
               onChange={e => { setQuery(e.target.value); setPage(1); }}
-              placeholder="Search by name, room, or items..."
+              placeholder="Search by name, email, phone, room, items, or membership..."
             />
 
             <select
@@ -214,8 +224,10 @@ const Reports: React.FC = () => {
               <thead>
                 <tr>
                   <th>Requested By</th>
+                  <th>Phone</th>
                   <th>Room</th>
                   <th>Carried Items</th>
+                  <th>Membership</th>
                   <th>Date</th>
                   <th>Status</th>
                 </tr>
@@ -225,11 +237,14 @@ const Reports: React.FC = () => {
                   <tr key={r._id}>
                     <td>
                       <strong>{r.userId?.fullName || 'Unknown'}</strong>
-                      {r.userId?.phone && (
-                        <div style={{ fontSize: '12px', color: 'var(--muted-text)' }}>
-                          {r.userId.phone}
+                      {r.userId?.email && (
+                        <div style={{ fontSize: '11px', color: 'var(--muted-text)' }}>
+                          {r.userId.email}
                         </div>
                       )}
+                    </td>
+                    <td>
+                      {r.phone || r.userId?.phone || '—'}
                     </td>
                     <td>
                       {r.roomId?.name || 'Unknown'}{' '}
@@ -239,6 +254,9 @@ const Reports: React.FC = () => {
                     </td>
                     <td style={{ maxWidth: '200px' }}>
                       {r.carriedItems || '—'}
+                    </td>
+                    <td>
+                      {r.membership || '—'}
                     </td>
                     <td>{formatDate(r.requestedAt)}</td>
                     <td>
@@ -250,7 +268,7 @@ const Reports: React.FC = () => {
                 ))}
                 {shown.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="empty-table">
+                    <td colSpan={7} className="empty-table">
                       No matching requests
                     </td>
                   </tr>
@@ -309,6 +327,100 @@ const Reports: React.FC = () => {
                     <div className="room-count">{room.count} requests</div>
                   </div>
                 ))
+              )}
+            </div>
+          </div>
+
+          {/* Most Active Users */}
+          <div className="help-card" style={{ marginTop: '1.5rem' }}>
+            <div className="card-header">
+              <Icons.Users size={22} />
+              <h2>Most Active Users</h2>
+            </div>
+
+            <div className="top-rooms-list">
+              {(() => {
+                const userMap = new Map<string, { name: string; count: number }>();
+                requests.forEach(r => {
+                  if (!r.userId) return;
+                  const key = r.userId._id;
+                  const existing = userMap.get(key);
+                  if (existing) {
+                    existing.count++;
+                  } else {
+                    userMap.set(key, {
+                      name: r.userId.fullName || 'Unknown',
+                      count: 1
+                    });
+                  }
+                });
+                const topUsers = Array.from(userMap.values())
+                  .sort((a, b) => b.count - a.count)
+                  .slice(0, 5);
+                const maxUserCount = topUsers.length ? Math.max(...topUsers.map(u => u.count)) : 1;
+
+                return topUsers.length === 0 ? (
+                  <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--muted-text)' }}>
+                    No data yet
+                  </div>
+                ) : (
+                  topUsers.map((user, i) => (
+                    <div key={i} className="room-usage-item">
+                      <div className="room-name">{user.name}</div>
+                      <div className="usage-bar-container">
+                        <div
+                          className="usage-bar"
+                          style={{ 
+                            width: `${(user.count / maxUserCount) * 100}%`,
+                            backgroundColor: '#3b82f6'
+                          }}
+                        />
+                      </div>
+                      <div className="room-count">{user.count} requests</div>
+                    </div>
+                  ))
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Recent Activity */}
+          <div className="help-card" style={{ marginTop: '1.5rem' }}>
+            <div className="card-header">
+              <Icons.Clock size={22} />
+              <h2>Recent Activity</h2>
+            </div>
+
+            <div style={{ padding: '0.5rem 0' }}>
+              {requests.slice(0, 5).map((r, i) => (
+                <div 
+                  key={r._id} 
+                  style={{
+                    padding: '0.75rem',
+                    borderBottom: i < 4 ? '1px solid rgba(15,23,42,0.06)' : 'none',
+                    fontSize: '13px'
+                  }}
+                >
+                  <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                    {r.userId?.fullName || 'Unknown'}
+                  </div>
+                  <div style={{ color: 'var(--muted-text)', marginBottom: '4px' }}>
+                    {r.roomId?.name || 'Unknown'} ({r.roomId?.code || '—'})
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--muted-text)' }}>
+                      {formatDate(r.requestedAt)}
+                    </span>
+                    <Badge variant={statusToBadge(r.status)}>
+                      {r.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+              {requests.length === 0 && (
+                <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--muted-text)' }}>
+                  No recent activity
+                </div>
               )}
             </div>
           </div>

@@ -13,6 +13,8 @@ import {
 interface ChartDataPoint {
   name: string;
   value?: number;
+  requests?: number;
+  users?: number;
   pv?: number;
   uv?: number;
 }
@@ -50,8 +52,8 @@ const ChartCard: React.FC<ChartCardProps> = ({ type, title, data, dropdown }) =>
               <XAxis dataKey="name" />
               <YAxis />
               <Tooltip />
-              <Line type="monotone" dataKey="pv" stroke="#f59e0b" strokeWidth={2} />
-              <Line type="monotone" dataKey="uv" stroke="#3b82f6" strokeWidth={2} />
+              <Line type="monotone" dataKey="requests" stroke="#f59e0b" strokeWidth={2} name="Requests" />
+              <Line type="monotone" dataKey="users" stroke="#3b82f6" strokeWidth={2} name="New Users" />
             </LineChart>
           )}
         </ResponsiveContainer>
