@@ -13,85 +13,92 @@ import {
   FiUsers,
   FiLock,
   FiInfo,
-  FiPlus,          // Add / Create / New
-  FiEdit,          // Edit
-  FiTrash,         // Delete
-  FiSend,          // Send message / submit
-  FiMail,          // Email / contact
-  FiAlertCircle,   // Warnings / alerts
-  FiCheckCircle,   // Success / approved
-  FiXCircle,       // Error / reject / close
-
-  // Added icons to support Settings.tsx usage
+  FiPlus,
+  FiEdit,
+  FiTrash,
+  FiSend,
+  FiMail,
+  FiAlertCircle,
+  FiCheckCircle,
+  FiXCircle,
+  FiX,
   FiSun,
   FiMoon,
   FiMonitor,
-
-  // Sidebar collapse/expand toggle icons
   FiChevronLeft,
   FiChevronRight,
-
-  // Help & Support page
   FiPhone,
   FiMapPin,
-
-  // Reports page specific icons
   FiCalendar,
   FiClock,
   FiUser,
   FiFilter,
+  // NEW: used in Reports & Requests pages
+  FiAlertTriangle,
+  FiRefreshCw,
+  FiShield,
+  FiUserCheck,
+  FiActivity,
 } from 'react-icons/fi';
 
 export const Icons = {
   // Navigation / Sidebar
-  Home: FiHome,
-  Key: FiKey,
-  FileText: FiFileText,
-  BarChart: FiBarChart,
-  Settings: FiSettings,
-  HelpCircle: FiHelpCircle,
-  LogOut: FiLogOut,
+  Home:        FiHome,
+  Key:         FiKey,
+  FileText:    FiFileText,
+  BarChart:    FiBarChart,
+  Settings:    FiSettings,
+  HelpCircle:  FiHelpCircle,
+  LogOut:      FiLogOut,
 
   // Header / Common UI
-  Search: FiSearch,
-  Bell: FiBell,
+  Search:  FiSearch,
+  Bell:    FiBell,
+  X:       FiX,
 
   // Stats / Dashboard
   Users: FiUsers,
-  Lock: FiLock,
+  Lock:  FiLock,
 
   // Misc / Utility
-  Info: FiInfo,
-  AlertCircle: FiAlertCircle,
-  CheckCircle: FiCheckCircle,
-  XCircle: FiXCircle,
+  Info:         FiInfo,
+  AlertCircle:  FiAlertCircle,
+  CheckCircle:  FiCheckCircle,
+  XCircle:      FiXCircle,
 
   // Rooms page actions
-  Plus: FiPlus,
-  Edit: FiEdit,
+  Plus:  FiPlus,
+  Edit:  FiEdit,
   Trash: FiTrash,
 
   // Forms / Submit / Contact
   Send: FiSend,
   Mail: FiMail,
 
-  // Appearance / theme icons used by Settings.tsx
+  // Appearance / theme
   Paintbrush: FiEdit,
-  Sun: FiSun,
-  Moon: FiMoon,
-  Monitor: FiMonitor,
+  Sun:        FiSun,
+  Moon:       FiMoon,
+  Monitor:    FiMonitor,
 
-  // Sidebar toggle icons
-  ChevronLeft: FiChevronLeft,
+  // Sidebar toggle
+  ChevronLeft:  FiChevronLeft,
   ChevronRight: FiChevronRight,
 
-  // Help & Support specific
-  Phone: FiPhone,
+  // Help & Support
+  Phone:  FiPhone,
   MapPin: FiMapPin,
 
-  // Reports page specific
+  // Reports & Requests
   Calendar: FiCalendar,
-  Clock: FiClock,
-  User: FiUser,
-  Filter: FiFilter,
+  Clock:    FiClock,
+  User:     FiUser,
+  Filter:   FiFilter,
+
+  // NEW — pending approval modal + admin request labels
+  AlertTriangle: FiAlertTriangle,  // Urgent notification / warning
+  RefreshCw:     FiRefreshCw,      // Return / cycle icon for timestamps
+  Shield:        FiShield,         // Admin badge pill
+  UserCheck:     FiUserCheck,      // Admin acting as user
+  Activity:      FiActivity,       // Recent activity sidebar header
 } as const;

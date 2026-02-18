@@ -32,19 +32,25 @@ const Header: React.FC<HeaderProps> = ({ role = 'Admin' }) => {
   // ── read user from localStorage ─────────────────────────────────────────
   const [firstName, setFirstName] = useState('User');
   const [membership, setMembership] = useState('');
-  const [regNo, setRegNo] = useState('');
+  const [isImpersonating, setIsImpersonating] = useState(false);
+  const [adminName, setAdminName] = useState('');
 
   useEffect(() => {
     const readUser = () => {
       try {
         const stored = localStorage.getItem('currentUser');
+        const impersonating = localStorage.getItem('impersonating') === 'true';
+        
         if (stored) {
           const u = JSON.parse(stored);
           // Take only the first name
           const first = (u.fullName || '').trim().split(' ')[0] || 'User';
           setFirstName(first);
           setMembership(u.membership || '');
-          setRegNo(u.regNo || u.registrationNumber || u.reg_no || '');
+          setIsImpersonating(impersonating);
+          if (impersonating && u.impersonatedBy) {
+            setAdminName(u.impersonatedBy);
+          }
         }
       } catch {}
     };
@@ -55,6 +61,16 @@ const Header: React.FC<HeaderProps> = ({ role = 'Admin' }) => {
     window.addEventListener('storage', readUser);
     return () => window.removeEventListener('storage', readUser);
   }, []);
+
+  // Exit impersonation mode
+  const handleExitUserMode = () => {
+    if (confirm('Exit user mode and return to admin account?')) {
+      localStorage.removeItem('impersonating');
+      localStorage.removeItem('originalAdmin');
+      alert('Logging out... Please log in again as admin.');
+      window.location.href = '/login';
+    }
+  };
 
   return (
     <header className="header">
@@ -128,12 +144,31 @@ const Header: React.FC<HeaderProps> = ({ role = 'Admin' }) => {
               ? membership
               : 'No Club Membership'}
           </div>
-          {/* Registration number */}
-          <div className="user-id">
-            RegNo: {regNo || 'N/A'}
-          </div>
         </div>
       </div>
+
+      {/* ── Exit User Mode Button (only visible when impersonating) ─── */}
+      {isImpersonating && (
+        <button
+          onClick={handleExitUserMode}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '10px',
+            background: '#ef4444',
+            color: 'white',
+            border: 'none',
+            fontWeight: 600,
+            fontSize: '13px',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)',
+            transition: 'all 0.2s',
+            whiteSpace: 'nowrap',
+          }}
+          title={`You are logged in as ${firstName}. Requested by: ${adminName}`}
+        >
+          🔓 Exit User Mode
+        </button>
+      )}
     </header>
   );
 };

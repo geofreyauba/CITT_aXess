@@ -1,14 +1,23 @@
 // src/pages/Register.tsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Check, X } from 'lucide-react';
+import { Eye, EyeOff, Check, X, Fingerprint } from 'lucide-react';
 import { authAPI } from '../lib/api';
+import { startRegistration } from '@simplewebauthn/browser';
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Registration complete state
+  const [registrationComplete, setRegistrationComplete] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState('');
+
+  // Fingerprint registration state
+  const [fingerprintLoading, setFingerprintLoading] = useState(false);
+  const [fingerprintSuccess, setFingerprintSuccess] = useState(false);
 
   // Basic fields
   const [fullName, setFullName] = useState('');
@@ -18,7 +27,7 @@ const Register: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [accountType, setAccountType] = useState<'student' | 'non_student'>('student');
   const [institution, setInstitution] = useState('MUST');
-  const [membership, setMembership] = useState('');  // ← can be empty
+  const [membership, setMembership] = useState('');
 
   // Student fields
   const [campus, setCampus] = useState('');
@@ -51,7 +60,6 @@ const Register: React.FC = () => {
 
   useEffect(() => {
     setShowRequirements(password.length > 0);
-
     const check = {
       minLength: password.length >= 8,
       hasUpper: /[A-Z]/.test(password),
@@ -82,14 +90,12 @@ const Register: React.FC = () => {
     setLoading(true);
 
     const formData = new FormData();
-
     formData.append('fullName', fullName);
     formData.append('email', email);
     formData.append('phone', phone);
     formData.append('password', password);
     formData.append('accountType', accountType);
     formData.append('institution', institution);
-    // Fix: always send membership (default to 'None' if empty)
     formData.append('membership', membership.trim() || 'None');
 
     if (accountType === 'student') {
@@ -107,9 +113,10 @@ const Register: React.FC = () => {
     }
 
     try {
-      await authAPI.register(formData);
-      alert('Registration successful! Your account is pending approval.');
-      navigate('/login');
+      const response = await authAPI.register(formData);
+      // Registration successful — show fingerprint option
+      setRegistrationComplete(true);
+      setRegisteredEmail(response.email || email);
     } catch (err: any) {
       setError(err.message || 'Registration failed');
     } finally {
@@ -117,10 +124,163 @@ const Register: React.FC = () => {
     }
   };
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // FINGERPRINT REGISTRATION
+  // ═══════════════════════════════════════════════════════════════════════
+  const handleRegisterFingerprint = async () => {
+    if (!registeredEmail) return;
+
+    setFingerprintLoading(true);
+    setError(null);
+
+    try {
+      // Step 1: Get challenge from server
+      const options = await authAPI.webauthnRegisterStart(registeredEmail);
+
+      // Step 2: Trigger browser's fingerprint prompt
+      const credential = await startRegistration(options);
+
+      // Step 3: Send credential to server for verification
+      const result = await authAPI.webauthnRegisterFinish(registeredEmail, credential);
+
+      if (result.success) {
+        setFingerprintSuccess(true);
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+      }
+    } catch (err: any) {
+      console.error('Fingerprint registration error:', err);
+      if (err.name === 'NotAllowedError') {
+        setError('Fingerprint registration was cancelled or timed out.');
+      } else if (err.name === 'NotSupportedError') {
+        setError('Fingerprint authentication is not supported on this device.');
+      } else {
+        setError(err.message || 'Failed to register fingerprint. You can skip this step.');
+      }
+    } finally {
+      setFingerprintLoading(false);
+    }
+  };
+
+  const handleSkipFingerprint = () => {
+    navigate('/login');
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SUCCESS SCREEN (after registration)
+  // ═══════════════════════════════════════════════════════════════════════
+  if (registrationComplete) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card" style={{ maxWidth: '480px', textAlign: 'center' }}>
+          <div style={{
+            width: '64px', height: '64px', borderRadius: '50%',
+            background: fingerprintSuccess ? '#d1fae5' : '#ede9fe',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 20px',
+          }}>
+            {fingerprintSuccess ? (
+              <Check size={32} color="#10b981" />
+            ) : (
+              <Fingerprint size={32} color="#6366f1" />
+            )}
+          </div>
+
+          <h1 className="auth-title" style={{ marginBottom: '12px' }}>
+            {fingerprintSuccess ? 'All Set!' : 'Registration Successful!'}
+          </h1>
+
+          {fingerprintSuccess ? (
+            <>
+              <p style={{ color: '#10b981', marginBottom: '16px', fontWeight: 500 }}>
+                ✓ Fingerprint registered successfully!
+              </p>
+              <p style={{ color: '#6b7280', marginBottom: '24px' }}>
+                Redirecting to login...
+              </p>
+            </>
+          ) : (
+            <>
+              <p style={{ color: '#6b7280', marginBottom: '24px', lineHeight: 1.6 }}>
+                Your account is pending admin approval.
+                <br />
+                <strong>Optional:</strong> Register your fingerprint now for faster sign-in.
+              </p>
+
+              {error && (
+                <div style={{
+                  padding: '12px',
+                  background: '#fee2e2',
+                  color: '#991b1b',
+                  borderRadius: '8px',
+                  marginBottom: '16px',
+                  fontSize: '14px',
+                }}>
+                  {error}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <button
+                  onClick={handleRegisterFingerprint}
+                  disabled={fingerprintLoading}
+                  style={{
+                    padding: '14px 24px',
+                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontSize: '15px',
+                    fontWeight: 600,
+                    cursor: fingerprintLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    opacity: fingerprintLoading ? 0.7 : 1,
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <Fingerprint size={20} />
+                  {fingerprintLoading ? 'Setting up...' : 'Register Fingerprint'}
+                </button>
+
+                <button
+                  onClick={handleSkipFingerprint}
+                  disabled={fingerprintLoading}
+                  style={{
+                    padding: '14px 24px',
+                    background: 'transparent',
+                    color: '#6b7280',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '10px',
+                    fontSize: '15px',
+                    fontWeight: 500,
+                    cursor: fingerprintLoading ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  Skip for Now
+                </button>
+              </div>
+
+              <p style={{ marginTop: '16px', fontSize: '13px', color: '#9ca3af' }}>
+                You can register your fingerprint later from your profile.
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // REGISTRATION FORM
+  // ═══════════════════════════════════════════════════════════════════════
   return (
     <div className="auth-page">
       <div className="auth-card" style={{ maxWidth: '560px' }}>
-        <h1 className="auth-title">aXess – Create Account</h1>
+        <h1 className="auth-title">aXess — Create Account</h1>
 
         <form onSubmit={handleSubmit} className="auth-form">
           {error && <div className="form-error">{error}</div>}
@@ -147,7 +307,7 @@ const Register: React.FC = () => {
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               style={{
-                position: 'absolute' as const,
+                position: 'absolute',
                 right: '14px',
                 top: '50%',
                 transform: 'translateY(-50%)',
@@ -161,7 +321,6 @@ const Register: React.FC = () => {
             </button>
           </div>
 
-          {/* Password requirements - hidden until typing starts */}
           {showRequirements && (
             <div style={{ margin: '12px 0 20px 0', fontSize: '13px' }}>
               <p style={{ fontWeight: 600, marginBottom: '8px', color: '#374151' }}>
@@ -176,14 +335,8 @@ const Register: React.FC = () => {
                   { label: 'One special character (!@#$%^&*)', met: requirements.hasSpecial },
                 ].map((req, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {req.met ? (
-                      <Check size={16} color="#10b981" />
-                    ) : (
-                      <X size={16} color="#ef4444" />
-                    )}
-                    <span style={{ color: req.met ? '#10b981' : '#6b7280' }}>
-                      {req.label}
-                    </span>
+                    {req.met ? <Check size={16} color="#10b981" /> : <X size={16} color="#ef4444" />}
+                    <span style={{ color: req.met ? '#10b981' : '#6b7280' }}>{req.label}</span>
                   </div>
                 ))}
               </div>
@@ -203,7 +356,7 @@ const Register: React.FC = () => {
               type="button"
               onClick={() => setShowConfirm(!showConfirm)}
               style={{
-                position: 'absolute' as const,
+                position: 'absolute',
                 right: '14px',
                 top: '50%',
                 transform: 'translateY(-50%)',

@@ -46,6 +46,10 @@ const Members: React.FC = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
 
+  // Document preview modal – kept for now, but not used from table anymore
+  const [previewFile, setPreviewFile] = useState<string | null>(null);
+  const [previewTitle, setPreviewTitle] = useState('');
+
   useEffect(() => {
     loadMembers();
   }, []);
@@ -54,7 +58,6 @@ const Members: React.FC = () => {
     try {
       setLoading(true);
       const data = await membersAPI.getAll();
-      console.log('Loaded members:', data);
       setMembers(Array.isArray(data) ? data : data?.data || data?.users || []);
     } catch (err: any) {
       console.error('Failed to load members:', err);
@@ -102,8 +105,6 @@ const Members: React.FC = () => {
         verificationStatus: newMemberForm.setApproved ? 'approved' : 'pending',
       };
 
-      console.log('Creating member with:', payload);
-
       const res = await fetch('/api/members/manual', {
         method: 'POST',
         headers: {
@@ -116,8 +117,7 @@ const Members: React.FC = () => {
       let data;
       try {
         data = await res.json();
-      } catch (jsonErr) {
-        console.error('Response was not JSON:', await res.text());
+      } catch {
         throw new Error('Server response was not valid JSON');
       }
 
@@ -126,15 +126,12 @@ const Members: React.FC = () => {
       }
 
       alert('Member created successfully!');
-
-      // Reload list
       const freshData = await membersAPI.getAll();
       setMembers(Array.isArray(freshData) ? freshData : []);
 
       setShowAddModal(false);
       resetNewMemberForm();
     } catch (err: any) {
-      console.error('Create member failed:', err);
       alert(`Failed to create member:\n${err.message}`);
     }
   };
@@ -144,6 +141,11 @@ const Members: React.FC = () => {
     setShowDetailsModal(true);
   };
 
+  const closePreview = () => {
+    setPreviewFile(null);
+    setPreviewTitle('');
+  };
+
   const handleApprove = async (id: string, name: string) => {
     if (!window.confirm(`Approve ${name}?`)) return;
     try {
@@ -151,21 +153,6 @@ const Members: React.FC = () => {
       await membersAPI.approve(id);
       setMembers(prev => prev.map(m => m._id === id ? { ...m, verificationStatus: 'approved' } : m));
       alert(`${name} has been approved!`);
-
-      // ─── Added: trigger email notification ───
-      try {
-        await fetch('/api/members/notify-email', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('authToken') || ''}`,
-          },
-          body: JSON.stringify({ id, action: 'approve' }),
-        });
-      } catch (emailErr) {
-        console.error('Email notification failed:', emailErr);
-        // Don't show error to user - approval already succeeded
-      }
     } catch (err: any) {
       alert(`Approve failed: ${err.message}`);
     } finally {
@@ -180,21 +167,6 @@ const Members: React.FC = () => {
       await membersAPI.reject(id);
       setMembers(prev => prev.map(m => m._id === id ? { ...m, verificationStatus: 'rejected' } : m));
       alert(`${name} has been rejected.`);
-
-      // ─── Added: trigger email notification ───
-      try {
-        await fetch('/api/members/notify-email', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('authToken') || ''}`,
-          },
-          body: JSON.stringify({ id, action: 'reject' }),
-        });
-      } catch (emailErr) {
-        console.error('Email notification failed:', emailErr);
-        // Don't show error to user - rejection already succeeded
-      }
     } catch (err: any) {
       alert(`Reject failed: ${err.message}`);
     } finally {
@@ -216,9 +188,40 @@ const Members: React.FC = () => {
     }
   };
 
+  const handleImpersonate = async (userId: string, userName: string) => {
+    if (!window.confirm(`Login as ${userName}?\n\nYou will access their account.`)) return;
+    
+    setActionLoading(userId);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/auth/impersonate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ userId })
+      });
+
+      if (!response.ok) throw new Error('Failed to impersonate');
+
+      const data = await response.json();
+      
+      localStorage.setItem('authToken', data.token);
+      localStorage.setItem('currentUser', JSON.stringify(data.user));
+      localStorage.setItem('impersonating', 'true');
+      
+      alert(`Now logged in as: ${userName}`);
+      window.location.href = '/dashboard';
+    } catch (err: any) {
+      alert('Failed to login as user: ' + err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const filtered = useMemo(() => {
     let result = [...members];
-
     const q = query.trim().toLowerCase();
     if (q) {
       result = result.filter(m =>
@@ -227,15 +230,8 @@ const Members: React.FC = () => {
         (m.institution || '').toLowerCase().includes(q)
       );
     }
-
-    if (statusFilter !== 'all') {
-      result = result.filter(m => m.verificationStatus === statusFilter);
-    }
-
-    if (accountTypeFilter !== 'all') {
-      result = result.filter(m => m.accountType === accountTypeFilter);
-    }
-
+    if (statusFilter !== 'all') result = result.filter(m => m.verificationStatus === statusFilter);
+    if (accountTypeFilter !== 'all') result = result.filter(m => m.accountType === accountTypeFilter);
     return result;
   }, [members, query, statusFilter, accountTypeFilter]);
 
@@ -278,7 +274,6 @@ const Members: React.FC = () => {
             borderRadius: '8px',
           }}
         />
-
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -289,7 +284,6 @@ const Members: React.FC = () => {
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
         </select>
-
         <select
           value={accountTypeFilter}
           onChange={(e) => setAccountTypeFilter(e.target.value)}
@@ -302,114 +296,125 @@ const Members: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div style={{ overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: '12px', background: 'white' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#f1f5f9', textAlign: 'left' }}>
-              <th style={{ padding: '14px', fontWeight: 600 }}>Member ID</th>
-              <th style={{ padding: '14px', fontWeight: 600 }}>Name</th>
-              <th style={{ padding: '14px', fontWeight: 600 }}>Email</th>
-              <th style={{ padding: '14px', fontWeight: 600 }}>Phone</th>
-              <th style={{ padding: '14px', fontWeight: 600 }}>Type</th>
-              <th style={{ padding: '14px', fontWeight: 600 }}>Status</th>
-              <th style={{ padding: '14px', fontWeight: 600 }}>Role</th>
-              <th style={{ padding: '14px', fontWeight: 600, textAlign: 'center' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((m) => (
-              <tr key={m._id} style={{ borderTop: '1px solid #f3f4f6' }}>
-                <td style={{ padding: '14px', fontFamily: 'monospace' }}>
-                  {m.regNumber || m._id.slice(-8).toUpperCase()}
-                </td>
-                <td style={{ padding: '14px' }}>{m.fullName}</td>
-                <td style={{ padding: '14px' }}>{m.email}</td>
-                <td style={{ padding: '14px' }}>{m.phone}</td>
-                <td style={{ padding: '14px' }}>{m.accountType.replace('_', ' ')}</td>
-                <td style={{ padding: '14px' }}>{m.verificationStatus}</td>
-                <td style={{ padding: '14px' }}>{m.role || 'user'}</td>
-                <td style={{ padding: '14px', textAlign: 'center' }}>
-                  <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-                    {/* Eye icon - View details */}
-                    <button
-                      onClick={() => handleViewDetails(m)}
-                      title="View details & documents"
+      {loading ? (
+        <p>Loading members...</p>
+      ) : (
+        <div style={{ overflowX: 'auto', background: 'white', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#f1f5f9' }}>
+                <th style={{ padding: '14px 12px', textAlign: 'left' }}>Name</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left' }}>Email</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left' }}>Phone</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left' }}>Type</th>
+                <th style={{ padding: '14px 12px', textAlign: 'left' }}>Status</th>
+                <th style={{ padding: '14px 12px', textAlign: 'center' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((member) => (
+                <tr key={member._id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                  <td style={{ padding: '14px 12px' }}>{member.fullName}</td>
+                  <td style={{ padding: '14px 12px' }}>{member.email}</td>
+                  <td style={{ padding: '14px 12px' }}>{member.phone}</td>
+                  <td style={{ padding: '14px 12px' }}>{member.accountType.replace('_', ' ')}</td>
+                  <td style={{ padding: '14px 12px' }}>
+                    <span
                       style={{
-                        background: 'transparent',
-                        border: 'none',
-                        fontSize: '18px',
-                        cursor: 'pointer',
-                        color: '#2563eb',
-                      }}
-                    >
-                      👁
-                    </button>
-
-                    {m.verificationStatus === 'pending' && (
-                      <>
-                        <button
-                          onClick={() => handleApprove(m._id, m.fullName)}
-                          disabled={actionLoading === m._id}
-                          style={{
-                            background: '#10b981',
-                            color: 'white',
-                            border: 'none',
-                            padding: '6px 12px',
-                            borderRadius: '6px',
-                            cursor: actionLoading === m._id ? 'not-allowed' : 'pointer',
-                          }}
-                        >
-                          Approve
-                        </button>
-
-                        <button
-                          onClick={() => handleReject(m._id, m.fullName)}
-                          disabled={actionLoading === m._id}
-                          style={{
-                            background: '#ef4444',
-                            color: 'white',
-                            border: 'none',
-                            padding: '6px 12px',
-                            borderRadius: '6px',
-                            cursor: actionLoading === m._id ? 'not-allowed' : 'pointer',
-                          }}
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
-
-                    <button
-                      onClick={() => handleDelete(m._id, m.fullName)}
-                      disabled={actionLoading === m._id}
-                      style={{
-                        background: 'transparent',
-                        border: '1px solid #ef4444',
-                        color: '#ef4444',
                         padding: '6px 12px',
-                        borderRadius: '6px',
-                        cursor: actionLoading === m._id ? 'not-allowed' : 'pointer',
+                        borderRadius: '999px',
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                        background:
+                          member.verificationStatus === 'approved' ? '#d1fae5' :
+                          member.verificationStatus === 'rejected' ? '#fee2e2' : '#fef3c7',
+                        color:
+                          member.verificationStatus === 'approved' ? '#065f46' :
+                          member.verificationStatus === 'rejected' ? '#991b1b' : '#92400e',
                       }}
                     >
-                      Delete
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                      {member.verificationStatus}
+                    </span>
+                  </td>
+                  <td style={{ padding: '14px 12px', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => handleViewDetails(member)}
+                        style={{
+                          background: '#6366f1',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '8px 14px',
+                          fontSize: '0.9rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        View
+                      </button>
 
-            {shown.length === 0 && (
-              <tr>
-                <td colSpan={8} style={{ padding: '60px', textAlign: 'center', color: '#6b7280' }}>
-                  {query || statusFilter !== 'all' || accountTypeFilter !== 'all'
-                    ? 'No members match your filters'
-                    : 'No members found'}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                      {member.verificationStatus === 'pending' && (
+                        <>
+                          <button
+                            onClick={() => handleApprove(member._id, member.fullName)}
+                            disabled={actionLoading === member._id}
+                            style={{
+                              background: '#10b981',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              padding: '8px 14px',
+                              fontSize: '0.9rem',
+                              cursor: 'pointer',
+                              opacity: actionLoading === member._id ? 0.6 : 1,
+                            }}
+                          >
+                            Approve
+                          </button>
+
+                          <button
+                            onClick={() => handleReject(member._id, member.fullName)}
+                            disabled={actionLoading === member._id}
+                            style={{
+                              background: '#ef4444',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              padding: '8px 14px',
+                              fontSize: '0.9rem',
+                              cursor: 'pointer',
+                              opacity: actionLoading === member._id ? 0.6 : 1,
+                            }}
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
+
+                      <button
+                        onClick={() => handleDelete(member._id, member.fullName)}
+                        disabled={actionLoading === member._id}
+                        style={{
+                          background: '#6b7280',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '8px 14px',
+                          fontSize: '0.9rem',
+                          cursor: 'pointer',
+                          opacity: actionLoading === member._id ? 0.6 : 1,
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Add Member Modal */}
       {showAddModal && (
@@ -646,27 +651,37 @@ const Members: React.FC = () => {
             <hr style={{ margin: '24px 0' }} />
 
             <h3>Uploaded Documents</h3>
-            <div style={{ marginTop: '12px' }}>
+            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {selectedMember.studentIdFile ? (
                 <p>
                   <strong>Student ID:</strong>{' '}
-                  <a href={`/uploads/${selectedMember.studentIdFile}`} target="_blank" rel="noopener noreferrer">
+                  <a
+                    href={`/uploads/${selectedMember.studentIdFile}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#6366f1', textDecoration: 'underline' }}
+                  >
                     View / Download
                   </a>
                 </p>
               ) : (
-                <p>No student ID uploaded</p>
+                <p style={{ color: '#6b7280' }}>No student ID uploaded</p>
               )}
 
               {selectedMember.nationalIdFile ? (
                 <p>
                   <strong>National ID:</strong>{' '}
-                  <a href={`/uploads/${selectedMember.nationalIdFile}`} target="_blank" rel="noopener noreferrer">
+                  <a
+                    href={`/uploads/${selectedMember.nationalIdFile}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#6366f1', textDecoration: 'underline' }}
+                  >
                     View / Download
                   </a>
                 </p>
               ) : (
-                <p>No national ID uploaded</p>
+                <p style={{ color: '#6b7280' }}>No national ID uploaded</p>
               )}
             </div>
 
@@ -684,6 +699,111 @@ const Members: React.FC = () => {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preview Modal – kept in case you want to use it later, but currently not triggered */}
+      {previewFile && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.85)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+            padding: '20px',
+          }}
+          onClick={closePreview}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '12px',
+              width: '90%',
+              maxWidth: '1100px',
+              maxHeight: '92vh',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                padding: '16px 24px',
+                background: '#f1f5f9',
+                borderBottom: '1px solid #e2e8f0',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#1e40af' }}>
+                {previewTitle}
+              </h3>
+              <button
+                onClick={closePreview}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.8rem',
+                  cursor: 'pointer',
+                  color: '#64748b',
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflow: 'auto', padding: '16px', background: '#f8fafc' }}>
+              {previewFile.toLowerCase().endsWith('.pdf') ? (
+                <iframe
+                  src={previewFile}
+                  title={previewTitle}
+                  style={{ width: '100%', height: '100%', border: 'none' }}
+                />
+              ) : (
+                <img
+                  src={previewFile}
+                  alt={previewTitle}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '80vh',
+                    objectFit: 'contain',
+                    margin: '0 auto',
+                    display: 'block',
+                  }}
+                />
+              )}
+            </div>
+
+            <div
+              style={{
+                padding: '12px 24px',
+                background: '#f1f5f9',
+                borderTop: '1px solid #e2e8f0',
+                textAlign: 'right',
+              }}
+            >
+              <a
+                href={previewFile}
+                download
+                style={{
+                  padding: '10px 20px',
+                  background: '#6366f1',
+                  color: 'white',
+                  borderRadius: '8px',
+                  textDecoration: 'none',
+                  fontWeight: 500,
+                }}
+              >
+                Download File
+              </a>
             </div>
           </div>
         </div>
