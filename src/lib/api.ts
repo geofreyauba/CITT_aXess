@@ -31,6 +31,18 @@ export const authAPI = {
     });
   },
 
+  // Check account status by email only (no password needed).
+  // Used by Login page step 1 to prevent users from resetting their
+  // password when they are simply pending approval.
+  async checkStatus(email: string) {
+    const response = await fetch(`${API_BASE}/auth/check-status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    return response.json(); // Always returns {status, fullName?}
+  },
+
   async register(formData: FormData) {
     const token = getToken();
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
@@ -44,6 +56,22 @@ export const authAPI = {
       throw new Error(errorData.msg || 'Registration failed');
     }
     return response.json();
+  },
+
+  // Admin resets any user's password without knowing the old one
+  async adminResetPassword(userId: string, newPassword: string) {
+    return fetchAPI('/auth/admin-reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ userId, newPassword }),
+    });
+  },
+
+  // Admin logs into a user's account. Returns token + adminToken
+  async impersonate(userId: string) {
+    return fetchAPI('/auth/impersonate', {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    });
   },
 
   // ── WebAuthn: Registration ──────────────────────────────────────────────

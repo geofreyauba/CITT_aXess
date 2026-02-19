@@ -1,5 +1,5 @@
 // src/components/layout/Sidebar.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Icons } from '../icons';
 import { performLogout } from '../../lib/auth';
@@ -10,90 +10,100 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin' }) => {
   const navigate = useNavigate();
+  const [collapsed, setCollapsed] = useState(false);
 
   const handleLogout = async (e: React.MouseEvent) => {
     e.preventDefault();
-    const ok = window.confirm('Are you sure you want to log out?');
-    if (!ok) return;
+    if (!window.confirm('Are you sure you want to log out?')) return;
 
     try {
       await performLogout();
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error('Logout failed:', err);
     } finally {
-      // send to login page
       navigate('/login', { replace: true });
-      // force reload to clear any in-memory state if you have it
       window.location.reload();
     }
   };
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-logo">aXess</div>
-      <div className="sidebar-role">Your {role}</div>
-      <nav>
-        <ul className="sidebar-nav">
-          <li>
-            <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'active' : '')}>
-              <Icons.Home className="sidebar-icon" /> Dashboard
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/members" className={({ isActive }) => (isActive ? 'active' : '')}>
-              <Icons.Users className="sidebar-icon" /> Members
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/rooms" className={({ isActive }) => (isActive ? 'active' : '')}>
-              <Icons.Key className="sidebar-icon" /> Rooms
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/requests" className={({ isActive }) => (isActive ? 'active' : '')}>
-              <Icons.FileText className="sidebar-icon" /> Requests
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/reports" className={({ isActive }) => (isActive ? 'active' : '')}>
-              <Icons.BarChart className="sidebar-icon" /> Reports
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/settings" className={({ isActive }) => (isActive ? 'active' : '')}>
-              <Icons.Settings className="sidebar-icon" /> Settings
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/help" className={({ isActive }) => (isActive ? 'active' : '')}>
-              <Icons.HelpCircle className="sidebar-icon" /> Help & Support
-            </NavLink>
-          </li>
+    <aside className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''}`}>
 
+      {/* Logo */}
+      <div className="sidebar-logo">
+        {collapsed ? 'aX' : 'aXess'}
+      </div>
+
+      {/* Navigation */}
+      <nav className="sidebar-nav">
+        <ul>
           <li>
-            <button
-              onClick={handleLogout}
-              className="sidebar-logout"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '0.75rem 1.5rem',
-                width: '100%',
-                border: 'none',
-                background: 'transparent',
-                color: 'inherit',
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontWeight: 500,
-              }}
-            >
-              <Icons.LogOut className="sidebar-icon" /> Logout
-            </button>
+            <NavLink to="/dashboard" title="Dashboard">
+              <Icons.Home className="sidebar-icon" />
+              <span className="sidebar-label">Dashboard</span>
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/members" title="Members">
+              <Icons.Users className="sidebar-icon" />
+              <span className="sidebar-label">Members</span>
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/rooms" title="Rooms">
+              <Icons.Key className="sidebar-icon" />
+              <span className="sidebar-label">Rooms</span>
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/requests" title="Requests">
+              <Icons.FileText className="sidebar-icon" />
+              <span className="sidebar-label">Requests</span>
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/reports" title="Reports">
+              <Icons.BarChart className="sidebar-icon" />
+              <span className="sidebar-label">Reports</span>
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/settings" title="Settings">
+              <Icons.Settings className="sidebar-icon" />
+              <span className="sidebar-label">Settings</span>
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/help" title="Help & Support">
+              <Icons.HelpCircle className="sidebar-icon" />
+              <span className="sidebar-label">Help & Support</span>
+            </NavLink>
           </li>
         </ul>
       </nav>
-      <div className="sidebar-footer">©Sightsx</div>
+
+      {/* Bottom area */}
+      <div className="sidebar-bottom">
+        <button
+          className="sidebar-logout"
+          onClick={handleLogout}
+          title="Logout"
+        >
+          <Icons.LogOut className="sidebar-icon" />
+          <span className="sidebar-label">Logout</span>
+        </button>
+
+        <button
+          className="sidebar-toggle"
+          onClick={() => setCollapsed(!collapsed)}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          <span className={`toggle-icon ${collapsed ? 'rotated' : ''}`}>
+            {collapsed ? '»»' : '««'}
+          </span>
+        </button>
+      </div>
+
     </aside>
   );
 };

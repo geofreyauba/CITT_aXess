@@ -107,9 +107,10 @@ const Register: React.FC = () => {
       if (studentIdFile) formData.append('studentIdFile', studentIdFile);
     } else {
       formData.append('educationBackground', educationBackground);
-      if (nationalIdFile) formData.append('nationalIdFile', nationalIdFile);
+      // Each file uses its own unique field name — matches multer & User model
+      if (nationalIdFile)     formData.append('nationalIdFile', nationalIdFile);
       if (residenceProofFile) formData.append('educationProofFile', residenceProofFile);
-      if (centerFormFile) formData.append('educationProofFile', centerFormFile);
+      if (centerFormFile)     formData.append('centerFormFile', centerFormFile);
     }
 
     try {
@@ -202,71 +203,59 @@ const Register: React.FC = () => {
             </>
           ) : (
             <>
-              <p style={{ color: '#6b7280', marginBottom: '24px', lineHeight: 1.6 }}>
-                Your account is pending admin approval.
-                <br />
-                <strong>Optional:</strong> Register your fingerprint now for faster sign-in.
+              <p style={{ color: '#6b7280', marginBottom: '8px' }}>
+                Your account is pending admin approval. You'll receive an email once approved.
+              </p>
+              <p style={{ color: '#6b7280', marginBottom: '24px' }}>
+                While you wait, would you like to register your fingerprint for faster login?
               </p>
 
               {error && (
-                <div style={{
-                  padding: '12px',
-                  background: '#fee2e2',
-                  color: '#991b1b',
-                  borderRadius: '8px',
-                  marginBottom: '16px',
-                  fontSize: '14px',
-                }}>
+                <div className="form-error" style={{ marginBottom: '16px' }}>
                   {error}
                 </div>
               )}
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <button
-                  onClick={handleRegisterFingerprint}
-                  disabled={fingerprintLoading}
-                  style={{
-                    padding: '14px 24px',
-                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '10px',
-                    fontSize: '15px',
-                    fontWeight: 600,
-                    cursor: fingerprintLoading ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '10px',
-                    opacity: fingerprintLoading ? 0.7 : 1,
-                    transition: 'all 0.2s',
-                  }}
-                >
-                  <Fingerprint size={20} />
-                  {fingerprintLoading ? 'Setting up...' : 'Register Fingerprint'}
-                </button>
+              <button
+                onClick={handleRegisterFingerprint}
+                disabled={fingerprintLoading}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  background: '#6366f1',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  fontSize: '1rem',
+                  cursor: fingerprintLoading ? 'not-allowed' : 'pointer',
+                  opacity: fingerprintLoading ? 0.7 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  marginBottom: '12px',
+                }}
+              >
+                <Fingerprint size={20} />
+                {fingerprintLoading ? 'Registering...' : 'Register Fingerprint'}
+              </button>
 
-                <button
-                  onClick={handleSkipFingerprint}
-                  disabled={fingerprintLoading}
-                  style={{
-                    padding: '14px 24px',
-                    background: 'transparent',
-                    color: '#6b7280',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '10px',
-                    fontSize: '15px',
-                    fontWeight: 500,
-                    cursor: fingerprintLoading ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  Skip for Now
-                </button>
-              </div>
-
-              <p style={{ marginTop: '16px', fontSize: '13px', color: '#9ca3af' }}>
-                You can register your fingerprint later from your profile.
-              </p>
+              <button
+                onClick={handleSkipFingerprint}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  background: 'transparent',
+                  color: '#6b7280',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Skip for now
+              </button>
             </>
           )}
         </div>
@@ -424,23 +413,48 @@ const Register: React.FC = () => {
               </select>
 
               <label>Student ID (PDF only) *</label>
-              <input type="file" accept="application/pdf" onChange={e => setStudentIdFile(e.target.files?.[0] || null)} required />
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={e => setStudentIdFile(e.target.files?.[0] || null)}
+                required
+              />
             </div>
           )}
 
           {accountType === 'non_student' && (
             <div className="conditional-fields">
               <label>Education Background</label>
-              <textarea className="auth-input" value={educationBackground} onChange={e => setEducationBackground(e.target.value)} rows={3} />
+              <textarea
+                className="auth-input"
+                value={educationBackground}
+                onChange={e => setEducationBackground(e.target.value)}
+                rows={3}
+              />
 
               <label>National ID / Any Registration ID (PDF) *</label>
-              <input type="file" accept="application/pdf" onChange={e => setNationalIdFile(e.target.files?.[0] || null)} required />
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={e => setNationalIdFile(e.target.files?.[0] || null)}
+                required
+              />
 
-              <label>Residence Proof (signed by Village Chairman) (PDF) *</label>
-              <input type="file" accept="application/pdf" onChange={e => setResidenceProofFile(e.target.files?.[0] || null)} required />
+              <label>Residence Proof — signed by Village Chairman (PDF) *</label>
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={e => setResidenceProofFile(e.target.files?.[0] || null)}
+                required
+              />
 
               <label>Registration Form from the Center (PDF) *</label>
-              <input type="file" accept="application/pdf" onChange={e => setCenterFormFile(e.target.files?.[0] || null)} required />
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={e => setCenterFormFile(e.target.files?.[0] || null)}
+                required
+              />
             </div>
           )}
 

@@ -6,6 +6,7 @@ import './App.css';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ResetPassword from './pages/ResetPassword';
+import Splash from './pages/Splash';                     // ← ADD THIS
 
 // Protected pages + layout
 import DashboardLayout from './components/layout/DashboardLayout';
@@ -24,6 +25,9 @@ const App: React.FC = () => {
   return (
     <Router>
       <Routes>
+        {/* Splash screen — shown only on exact "/" before any auth check */}
+        <Route path="/" element={<Splash />} />          {/* ← ADD THIS */}
+
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -92,8 +96,6 @@ const App: React.FC = () => {
               </DashboardLayout>
             }
           />
-
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Route>
 
         {/* Fallback */}

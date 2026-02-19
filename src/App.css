@@ -2317,3 +2317,223 @@ body.dark .role-badge {
   from { opacity: 0; transform: translateY(-10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* ─────────────────────────────────────────────────────────────
+   Sidebar – compact logo, menu higher, bottom always visible
+─────────────────────────────────────────────────────────────── */
+
+.sidebar {
+  width: 240px;
+  background: var(--white-glass);
+  backdrop-filter: blur(10px);
+  border-right: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow: hidden;
+}
+
+.sidebar-collapsed {
+  width: 74px;
+}
+
+/* ── Logo ──────────────────────────────────────────────── */
+.sidebar-logo {
+  flex: 0 0 auto;
+  padding: 1rem 0.8rem 0.8rem;
+  text-align: center;
+  border-bottom: 1px solid var(--glass-border);
+  transition: all 0.28s ease;
+}
+
+.logo-normal {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--soft-blue-dark);
+}
+
+.logo-collapsed,
+.sidebar-collapsed .sidebar-logo {
+  font-size: 1.32rem;           /* small enough to fit nicely */
+  font-weight: 900;
+  letter-spacing: -1.1px;
+  color: var(--soft-blue);
+  padding: 0.95rem 0.4rem 0.7rem;
+}
+
+/* ── Navigation – starts higher ────────────────────────── */
+.sidebar-nav-container {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-top: 0.3rem;          /* reduced top padding → menu higher */
+}
+
+.sidebar-nav-wrapper {
+  padding: 0.4rem 0;
+}
+
+.sidebar-nav a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0.85rem 1.3rem;
+  color: var(--text);
+  text-decoration: none;
+  transition: all 0.18s ease;
+  min-height: 46px;
+}
+
+.sidebar-collapsed .sidebar-nav a {
+  justify-content: center;
+  padding: 0.9rem 0;
+  gap: 0;
+  min-height: 52px;
+}
+
+.sidebar-collapsed .sidebar-label {
+  display: none;
+}
+
+/* ── Bottom controls ───────────────────────────────────── */
+.sidebar-bottom-controls {
+  flex: 0 0 auto;
+  padding: 1.8rem 1rem 2.2rem;
+  border-top: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  gap: 1.3rem;
+  
+  margin-top: 12rem !important;
+}
+
+.sidebar-logout,
+.sidebar-toggle {
+  width: 100%;
+  padding: 0.9rem;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.2s;
+}
+
+.sidebar-logout {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: white;
+  font-weight: 600;
+}
+
+.sidebar-toggle {
+  background: rgba(79, 70, 229, 0.08);
+  color: var(--soft-blue);
+  font-size: 1.6rem;
+  font-weight: bold;
+  justify-content: flex-start;      /* ← text/icon to the left */
+  padding-left: 4rem;             /* ← add left padding so it doesn't touch the edge */
+
+}
+
+.sidebar-collapsed .sidebar-logout,
+.sidebar-collapsed .sidebar-toggle {
+  width: 54px;
+  height: 0px;
+  padding: 0;
+  margin: 0 auto;
+  border-radius: 50%;
+}
+
+.sidebar-collapsed .sidebar-logout .sidebar-label {
+  display: none;
+}
+
+.toggle-icon {
+  transition: transform 0.32s ease;
+}
+
+.toggle-icon.rotated {
+  transform: rotate(180deg);
+}
+
+/* Content shift */
+.main-layout {
+  transition: margin-left 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-collapsed + .main-layout {
+  margin-left: 74px;
+}
+
+/* Add small gap between menu items and bottom controls (Logout + collapse) */
+.sidebar-bottom-controls {
+  margin-top: 6rem !important;     /* very large gap */
+  padding-top: 1.8rem;
+  border-top: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  gap: 1.3rem;
+}
+
+/* Optional: make the gap smaller when collapsed */
+.sidebar-collapsed .sidebar-bottom-controls {
+  margin-top: 4rem;
+  padding-top: 0.8rem;
+}
+
+/* If you want even more control, you can also add minimum space above the bottom section */
+.sidebar-nav {
+  margin-bottom: 1rem;         /* ← adds space below the last menu item */
+}
+
+/* Splash loading dots animation */
+.dot {
+  width: 16px;
+  height: 16px;
+  background: var(--soft-blue);
+  border-radius: 50%;
+  animation: bounce 1.2s infinite ease-in-out;
+}
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+/* ══════════════════════════════════════════════════════
+   SPLASH SCREEN — Bouncing dots animation
+   Paste this at the very end of App.css
+   ══════════════════════════════════════════════════════ */
+
+@keyframes splashFadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes splashBounce {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateY(-14px) scale(1.15);
+    opacity: 1;
+  }
+}
+
+.splash-dot {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #1a1a1a;   /* dark to match the logo on the grey background */
+  animation: splashBounce 0.9s ease-in-out infinite;
+}
