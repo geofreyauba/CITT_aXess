@@ -2,6 +2,31 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { membersAPI, authAPI } from '../lib/api';
 
+// ── Club membership options (must match User.js and Register.tsx) ────────────
+const MEMBERSHIP_OPTIONS = [
+  'None',
+  'Innovation & Tech Club',
+  'Entrepreneurship & Startup Club',
+  'Environmental & Sustainability Club',
+  'Debate & Public Speaking Club',
+  'Photography & Film Club',
+  'Music & Performing Arts Club',
+  'Gaming & Esports Club',
+  'Literature & Book Club',
+  'Sports Analytics & Fitness Club',
+  'Community Service & Outreach Club',
+];
+
+const ROLE_OPTIONS = [
+  { value: 'user',      label: 'User' },
+  { value: 'innovator', label: 'Innovator' },
+  { value: 'member',    label: 'Member' },
+  { value: 'guard',     label: 'Guard' },
+  { value: 'leader',    label: 'Leader' },
+  { value: 'admin',     label: 'Admin' },
+];
+
+// ── Member type ──────────────────────────────────────────────────────────────
 interface Member {
   _id: string;
   fullName: string;
@@ -18,6 +43,7 @@ interface Member {
   level?: string;
   yearOfStudy?: string;
   educationBackground?: string;
+  passportPhotoFile?: string;   // NEW
   studentIdFile?: string;
   nationalIdFile?: string;
   educationProofFile?: string;
@@ -25,60 +51,49 @@ interface Member {
   createdAt?: string;
 }
 
-// ── Icons ─────────────────────────────────────────────────────────────────
-const EyeIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
-    fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-    <circle cx="12" cy="12" r="3" />
-  </svg>
-);
-const UserIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-    fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-    <circle cx="12" cy="7" r="4" />
-  </svg>
-);
-const KeyIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-    fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="7.5" cy="15.5" r="5.5" />
-    <path d="M21 2l-9.6 9.6M15.5 7.5l3 3L21 2l-5.5 5.5" />
-  </svg>
-);
+// ── Icons ────────────────────────────────────────────────────────────────────
+const EyeIcon  = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
+const UserIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+const KeyIcon  = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6M15.5 7.5l3 3L21 2l-5.5 5.5"/></svg>;
 
-// ── Resolve stored filename → fetch URL ──────────────────────────────────
+// ── URL helpers ──────────────────────────────────────────────────────────────
 function toFetchUrl(stored: string): string {
+  if (!stored) return '';
   if (stored.startsWith('http://') || stored.startsWith('https://')) return stored;
   const clean = stored.replace(/^\/+/, '').replace(/^uploads\//, '');
   return `/api/members/file/${encodeURIComponent(clean)}`;
 }
 
-// ── ArrayBuffer → base64 (for data URL PDF rendering) ────────────────────
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  let binary = '';
+  let bin = '';
   const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-  return window.btoa(binary);
+  for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
+  return window.btoa(bin);
 }
 
-// ══════════════════════════════════════════════════════════════════════════
+// ── Role badge colour ────────────────────────────────────────────────────────
+const ROLE_COLOUR: Record<string, { bg: string; color: string }> = {
+  admin:     { bg: '#ede9fe', color: '#5b21b6' },
+  innovator: { bg: '#d1fae5', color: '#065f46' },
+  member:    { bg: '#fef3c7', color: '#92400e' },
+  guard:     { bg: '#fee2e2', color: '#991b1b' },
+  leader:    { bg: '#e0f2fe', color: '#075985' },
+  user:      { bg: '#f1f5f9', color: '#475569' },
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
 // IMPERSONATION BANNER
-// Shows on every page when admin has "logged in as" a user.
-// Reads localStorage 'adminToken' / 'adminUser' set by handleImpersonate.
-// ══════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 export const ImpersonationBanner: React.FC = () => {
-  const adminToken = localStorage.getItem('adminToken');
-  const adminUser  = (() => { try { return JSON.parse(localStorage.getItem('adminUser') || '{}'); } catch { return {}; } })();
+  const adminToken  = localStorage.getItem('adminToken');
+  const adminUser   = (() => { try { return JSON.parse(localStorage.getItem('adminUser')  || '{}'); } catch { return {}; } })();
   const currentUser = (() => { try { return JSON.parse(localStorage.getItem('currentUser') || '{}'); } catch { return {}; } })();
 
   if (!adminToken || !currentUser.isImpersonating) return null;
 
   const handleReturn = () => {
-    // Restore admin session
-    localStorage.setItem('authToken', adminToken);
-    localStorage.setItem('currentUser', JSON.stringify(adminUser));
+    localStorage.setItem('authToken',    adminToken);
+    localStorage.setItem('currentUser',  JSON.stringify(adminUser));
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminUser');
     localStorage.removeItem('impersonating');
@@ -88,7 +103,7 @@ export const ImpersonationBanner: React.FC = () => {
   return (
     <div style={{
       position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
-      background: 'linear-gradient(135deg, #dc2626, #991b1b)',
+      background: 'linear-gradient(135deg,#dc2626,#991b1b)',
       color: 'white', padding: '10px 20px',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       boxShadow: '0 4px 12px rgba(220,38,38,0.4)',
@@ -97,64 +112,61 @@ export const ImpersonationBanner: React.FC = () => {
         <UserIcon />
         <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>
           👁 Viewing as: <strong>{currentUser.fullName}</strong>
-          &nbsp;|&nbsp;
-          Logged in by admin: <strong>{currentUser.impersonatedByName || adminUser.fullName || 'Admin'}</strong>
+          &nbsp;|&nbsp; Logged in by admin: <strong>{currentUser.impersonatedByName || adminUser.fullName || 'Admin'}</strong>
         </span>
       </div>
-      <button
-        onClick={handleReturn}
-        style={{
-          background: 'white', color: '#dc2626', border: 'none',
-          borderRadius: '6px', padding: '6px 16px', fontWeight: 700,
-          cursor: 'pointer', fontSize: '0.85rem',
-        }}
-      >
+      <button onClick={handleReturn} style={{ background: 'white', color: '#dc2626', border: 'none', borderRadius: '6px', padding: '6px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
         ← Return to Admin
       </button>
     </div>
   );
 };
 
-// ══════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // MEMBERS PAGE
-// ══════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 const Members: React.FC = () => {
-  const [members, setMembers]               = useState<Member[]>([]);
-  const [loading, setLoading]               = useState(true);
-  const [query, setQuery]                   = useState('');
-  const [statusFilter, setStatusFilter]     = useState('all');
-  const [typeFilter, setTypeFilter]         = useState('all');
-  const [page, setPage]                     = useState(1);
-  const [actionLoading, setActionLoading]   = useState<string | null>(null);
+  const [members,       setMembers]       = useState<Member[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [query,         setQuery]         = useState('');
+  const [statusFilter,  setStatusFilter]  = useState('all');
+  const [typeFilter,    setTypeFilter]    = useState('all');
+  const [page,          setPage]          = useState(1);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const perPage = 12;
 
-  // Add member modal
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newMemberForm, setNewMemberForm] = useState({
+  // ── Add member modal ──────────────────────────────────────────────────────
+  const [showAddModal,    setShowAddModal]    = useState(false);
+  const [addPassportFile, setAddPassportFile] = useState<File | null>(null);
+  const [addPassportPreview, setAddPassportPreview] = useState<string | null>(null);
+  const [newMemberForm,   setNewMemberForm]   = useState({
     fullName: '', email: '', phone: '',
     accountType: 'non_student' as 'student' | 'non_student',
     institution: 'MUST', membership: 'None', password: '',
-    role: 'user' as 'user' | 'innovator' | 'coordinator' | 'admin',
-    setApproved: true,
+    role: 'user', setApproved: true,
   });
 
-  // Details modal
-  const [showDetails, setShowDetails]       = useState(false);
-  const [selected, setSelected]             = useState<Member | null>(null);
+  // ── Details modal ─────────────────────────────────────────────────────────
+  const [showDetails, setShowDetails] = useState(false);
+  const [selected,    setSelected]    = useState<Member | null>(null);
 
-  // Reset password modal
-  const [showResetPw, setShowResetPw]       = useState(false);
-  const [resetTarget, setResetTarget]       = useState<Member | null>(null);
-  const [newPassword, setNewPassword]       = useState('');
-  const [resetLoading, setResetLoading]     = useState(false);
-  const [resetMsg, setResetMsg]             = useState('');
+  // Passport photo lightbox in details
+  const [passportLightbox, setPassportLightbox] = useState(false);
+  const [passportSrc,      setPassportSrc]      = useState('');
 
-  // PDF preview
+  // ── Reset password modal ──────────────────────────────────────────────────
+  const [showResetPw,  setShowResetPw]  = useState(false);
+  const [resetTarget,  setResetTarget]  = useState<Member | null>(null);
+  const [newPassword,  setNewPassword]  = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMsg,     setResetMsg]     = useState('');
+
+  // ── PDF preview ───────────────────────────────────────────────────────────
   const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null);
-  const [previewTitle, setPreviewTitle]     = useState('');
+  const [previewTitle,   setPreviewTitle]   = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError]     = useState<string | null>(null);
-  const [downloadUrl, setDownloadUrl]       = useState<string | null>(null);
+  const [previewError,   setPreviewError]   = useState<string | null>(null);
+  const [downloadUrl,    setDownloadUrl]    = useState<string | null>(null);
 
   useEffect(() => { loadMembers(); }, []);
 
@@ -172,11 +184,25 @@ const Members: React.FC = () => {
 
   const resetAddForm = useCallback(() => {
     setNewMemberForm({ fullName: '', email: '', phone: '', accountType: 'non_student', institution: 'MUST', membership: 'None', password: '', role: 'user', setApproved: true });
+    setAddPassportFile(null);
+    setAddPassportPreview(null);
   }, []);
 
   const handleNewMemberChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     setNewMemberForm(prev => ({ ...prev, [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value }));
+  };
+
+  // Passport preview in Add modal
+  const handleAddPassportChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setAddPassportFile(file);
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setAddPassportPreview(url);
+    } else {
+      setAddPassportPreview(null);
+    }
   };
 
   const handleAddMember = async (e: React.FormEvent) => {
@@ -185,31 +211,42 @@ const Members: React.FC = () => {
       alert('Full name, email and phone are required.');
       return;
     }
+
     try {
-      const payload = { ...newMemberForm, verificationStatus: newMemberForm.setApproved ? 'approved' : 'pending' };
+      // Use FormData so we can include the passport photo file
+      const fd = new FormData();
+      Object.entries(newMemberForm).forEach(([k, v]) => {
+        if (k === 'setApproved') return;
+        fd.append(k, String(v));
+      });
+      fd.append('verificationStatus', newMemberForm.setApproved ? 'approved' : 'pending');
+      if (addPassportFile) fd.append('passportPhotoFile', addPassportFile);
+
       const res = await fetch('/api/members/manual', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('authToken') || ''}` },
-        body: JSON.stringify(payload),
+        headers: { Authorization: `Bearer ${localStorage.getItem('authToken') || ''}` },
+        body: fd,
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || data?.error || `Server error (${res.status})`);
+      if (!res.ok) throw new Error(data?.message || `Server error (${res.status})`);
+
       alert('Member created successfully!');
       await loadMembers();
       setShowAddModal(false);
       resetAddForm();
-    } catch (err: any) { alert(`Failed to create member:\n${err.message}`); }
+    } catch (err: any) {
+      alert(`Failed to create member:\n${err.message}`);
+    }
   };
 
-  // ── PDF viewer ────────────────────────────────────────────────────────
+  // ── PDF viewer ────────────────────────────────────────────────────────────
   const handleViewFile = async (storedPath: string, title: string) => {
     if (downloadUrl) URL.revokeObjectURL(downloadUrl);
     setPreviewDataUrl(null); setDownloadUrl(null);
     setPreviewError(null); setPreviewTitle(title); setPreviewLoading(true);
-
     try {
       const token = localStorage.getItem('authToken') || '';
-      const res = await fetch(toFetchUrl(storedPath), { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const res   = await fetch(toFetchUrl(storedPath), { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       if (!res.ok) throw new Error(`HTTP ${res.status} — file not found`);
       const buffer = await res.arrayBuffer();
       if (buffer.byteLength === 0) throw new Error('Server returned an empty file');
@@ -227,7 +264,62 @@ const Members: React.FC = () => {
     setPreviewDataUrl(null); setDownloadUrl(null); setPreviewTitle(''); setPreviewError(null);
   };
 
-  // ── Approve / Reject / Delete ─────────────────────────────────────────
+  // ── Open passport lightbox ────────────────────────────────────────────────
+  const openPassportLightbox = (storedPath: string) => {
+    setPassportSrc(toFetchUrl(storedPath));
+    setPassportLightbox(true);
+  };
+
+  // ── Download passport photo (with directory picker if browser supports it) ──
+  const handleDownloadPhoto = async (storedPath: string, memberName: string) => {
+    try {
+      const url   = toFetchUrl(storedPath);
+      const token = localStorage.getItem('authToken') || '';
+      const res   = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob     = await res.blob();
+      const ext      = storedPath.split('.').pop()?.toLowerCase() || 'jpg';
+      const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+      const filename = `passport-${memberName.replace(/\s+/g, '-')}.${ext}`;
+
+      // ── Try File System Access API (Chrome/Edge — lets user pick folder) ──
+      if ('showSaveFilePicker' in window) {
+        try {
+          const fileHandle = await (window as any).showSaveFilePicker({
+            suggestedName: filename,
+            types: [{
+              description: 'Image file',
+              accept: { [mimeType]: [`.${ext}`] },
+            }],
+          });
+          const writable = await fileHandle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          return; // Done — user picked folder via native dialog
+        } catch (pickerErr: any) {
+          // User cancelled the picker — do nothing
+          if (pickerErr.name === 'AbortError') return;
+          // Any other picker error → fall through to normal download below
+        }
+      }
+
+      // ── Fallback: normal browser download (goes to default Downloads folder) ──
+      // Tip: in Chrome/Edge Settings → Downloads, turn on "Ask where to save
+      // each file" to always get a folder picker on every download.
+      const objUrl = URL.createObjectURL(blob);
+      const link   = document.createElement('a');
+      link.href     = objUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(objUrl), 2000);
+    } catch (err: any) {
+      alert('Download failed: ' + err.message);
+    }
+  };
+
+  // ── Approve / Reject / Delete ─────────────────────────────────────────────
   const handleApprove = async (id: string, name: string) => {
     if (!window.confirm(`Approve ${name}?`)) return;
     try {
@@ -253,7 +345,7 @@ const Members: React.FC = () => {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Permanently delete ${name}?`)) return;
+    if (!window.confirm(`Permanently delete ${name}? This cannot be undone.`)) return;
     try {
       setActionLoading(id);
       await membersAPI.delete(id);
@@ -263,28 +355,20 @@ const Members: React.FC = () => {
     finally { setActionLoading(null); }
   };
 
-  // ── LOGIN AS USER (impersonate) ───────────────────────────────────────
-  // Stores admin's original token as 'adminToken' so ImpersonationBanner
-  // can restore it. Then switches session to target user and redirects.
+  // ── Impersonate ───────────────────────────────────────────────────────────
   const handleImpersonate = async (member: Member) => {
     if (!window.confirm(`Log in as ${member.fullName}?\n\nYou will see their exact view. A banner will appear so you can return to your admin session.`)) return;
     setActionLoading(member._id);
     try {
       const adminToken = localStorage.getItem('authToken');
       const adminUser  = localStorage.getItem('currentUser');
-
       const data = await authAPI.impersonate(member._id);
-
-      // Save admin session for restoration
-      localStorage.setItem('adminToken', adminToken || '');
-      localStorage.setItem('adminUser',  adminUser  || '{}');
-      localStorage.setItem('impersonating', 'true');
-
-      // Switch to impersonated session
+      localStorage.setItem('adminToken',   adminToken || '');
+      localStorage.setItem('adminUser',    adminUser  || '{}');
+      localStorage.setItem('impersonating','true');
       localStorage.setItem('authToken',    data.token);
       localStorage.setItem('currentUser',  JSON.stringify(data.user));
-
-      window.location.href = '/requests'; // Send admin to user's requests page
+      window.location.href = '/requests';
     } catch (err: any) {
       alert('Failed to log in as user: ' + err.message);
     } finally {
@@ -292,20 +376,16 @@ const Members: React.FC = () => {
     }
   };
 
-  // ── RESET PASSWORD (admin) ────────────────────────────────────────────
+  // ── Reset password ────────────────────────────────────────────────────────
   const openResetPw = (member: Member) => {
-    setResetTarget(member);
-    setNewPassword('');
-    setResetMsg('');
-    setShowResetPw(true);
+    setResetTarget(member); setNewPassword(''); setResetMsg(''); setShowResetPw(true);
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetTarget || !newPassword) return;
     if (newPassword.length < 6) { setResetMsg('Password must be at least 6 characters.'); return; }
-    setResetLoading(true);
-    setResetMsg('');
+    setResetLoading(true); setResetMsg('');
     try {
       await authAPI.adminResetPassword(resetTarget._id, newPassword);
       setResetMsg(`✅ Password reset for ${resetTarget.fullName}. They can now log in with the new password.`);
@@ -317,20 +397,20 @@ const Members: React.FC = () => {
     }
   };
 
-  // ── Filtering & pagination ────────────────────────────────────────────
+  // ── Filter & paginate ─────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let r = [...members];
     const q = query.trim().toLowerCase();
     if (q) r = r.filter(m => m.fullName.toLowerCase().includes(q) || m.email.toLowerCase().includes(q) || (m.institution || '').toLowerCase().includes(q));
     if (statusFilter !== 'all') r = r.filter(m => m.verificationStatus === statusFilter);
-    if (typeFilter !== 'all')   r = r.filter(m => m.accountType === typeFilter);
+    if (typeFilter   !== 'all') r = r.filter(m => m.accountType === typeFilter);
     return r;
   }, [members, query, statusFilter, typeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
   const shown = filtered.slice((page - 1) * perPage, page * perPage);
 
-  // ── Reusable sub-components ───────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
   const StatusBadge = ({ s }: { s: string }) => (
     <span style={{
       padding: '3px 10px', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 700,
@@ -338,6 +418,16 @@ const Members: React.FC = () => {
       color:      s === 'approved' ? '#065f46' : s === 'rejected' ? '#991b1b' : '#92400e',
     }}>{s}</span>
   );
+
+  const RolePill = ({ role }: { role?: string }) => {
+    const r = role || 'user';
+    const c = ROLE_COLOUR[r] || ROLE_COLOUR.user;
+    return (
+      <span style={{ padding: '3px 10px', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 700, background: c.bg, color: c.color, textTransform: 'capitalize' }}>
+        {r}
+      </span>
+    );
+  };
 
   const DocRow = ({ storedPath, label }: { storedPath: string; label: string }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderBottom: '1px solid #e5e7eb' }}>
@@ -356,7 +446,6 @@ const Members: React.FC = () => {
     </div>
   );
 
-  // ── Action button style helper ────────────────────────────────────────
   const abtn = (bg: string, disabled = false): React.CSSProperties => ({
     background: bg, color: 'white', border: 'none', borderRadius: '6px',
     padding: '6px 11px', cursor: disabled ? 'not-allowed' : 'pointer',
@@ -364,12 +453,17 @@ const Members: React.FC = () => {
     display: 'inline-flex', alignItems: 'center', gap: '5px',
   });
 
+  const inputSt: React.CSSProperties = { width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: '8px', boxSizing: 'border-box' };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════════════════════════
   return (
     <div style={{ padding: '24px', background: '#f8fafc', minHeight: '100vh' }}>
 
       {/* Header */}
       <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: '26px', fontWeight: 700, margin: 0 }}>Members</h1>
+        <h1 style={{ fontSize: '26px', fontWeight: 700, margin: 0, color: '#0f172a' }}>Members</h1>
         <button onClick={() => setShowAddModal(true)}
           style={{ background: '#6366f1', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}>
           + Add Member
@@ -396,12 +490,16 @@ const Members: React.FC = () => {
       </div>
 
       {/* Table */}
-      {loading ? <p>Loading…</p> : shown.length === 0 ? <p style={{ color: '#6b7280' }}>No members found.</p> : (
+      {loading ? (
+        <p style={{ color: '#6b7280' }}>Loading…</p>
+      ) : shown.length === 0 ? (
+        <p style={{ color: '#6b7280' }}>No members found.</p>
+      ) : (
         <div style={{ overflowX: 'auto', background: 'white', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.07)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
             <thead>
               <tr style={{ background: '#f1f5f9' }}>
-                {['Name', 'Email', 'Phone', 'Type', 'Status', 'Actions'].map(h => (
+                {['Photo', 'Name', 'Email', 'Phone', 'Role', 'Type', 'Status', 'Actions'].map(h => (
                   <th key={h} style={{ padding: '13px 12px', textAlign: h === 'Actions' ? 'center' : 'left', fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
@@ -411,38 +509,52 @@ const Members: React.FC = () => {
                 const busy = actionLoading === m._id;
                 return (
                   <tr key={m._id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                    {/* Thumbnail passport photo */}
+                    <td style={{ padding: '10px 12px' }}>
+                      {m.passportPhotoFile ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                          <img
+                            src={toFetchUrl(m.passportPhotoFile)}
+                            alt={m.fullName}
+                            onClick={() => openPassportLightbox(m.passportPhotoFile!)}
+                            style={{ width: 40, height: 50, objectFit: 'cover', borderRadius: '6px', cursor: 'zoom-in', border: '1px solid #e5e7eb' }}
+                            title="Click to enlarge"
+                          />
+                          <button
+                            onClick={() => handleDownloadPhoto(m.passportPhotoFile!, m.fullName)}
+                            title="Download passport photo"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', fontSize: '14px', padding: '0', lineHeight: 1 }}
+                          >⬇</button>
+                        </div>
+                      ) : (
+                        <div style={{ width: 40, height: 50, borderRadius: '6px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', color: '#94a3b8', border: '1px dashed #cbd5e1' }}>
+                          👤
+                        </div>
+                      )}
+                    </td>
                     <td style={{ padding: '12px', fontWeight: 500 }}>{m.fullName}</td>
                     <td style={{ padding: '12px' }}>{m.email}</td>
                     <td style={{ padding: '12px' }}>{m.phone}</td>
+                    <td style={{ padding: '12px' }}><RolePill role={m.role} /></td>
                     <td style={{ padding: '12px', textTransform: 'capitalize' }}>{m.accountType.replace('_', ' ')}</td>
                     <td style={{ padding: '12px' }}><StatusBadge s={m.verificationStatus} /></td>
                     <td style={{ padding: '12px' }}>
                       <div style={{ display: 'flex', gap: '5px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                        {/* View details */}
-                        <button onClick={() => { setSelected(m); setShowDetails(true); }} style={abtn('#6366f1')}>
-                          View
-                        </button>
-
-                        {/* Approve/Reject for pending */}
-                        {m.verificationStatus === 'pending' && (<>
-                          <button onClick={() => handleApprove(m._id, m.fullName)} disabled={busy} style={abtn('#10b981', busy)}>Approve</button>
-                          <button onClick={() => handleReject(m._id, m.fullName)}  disabled={busy} style={abtn('#ef4444', busy)}>Reject</button>
-                        </>)}
-
-                        {/* LOGIN AS USER — only for approved non-admin members */}
+                        <button onClick={() => { setSelected(m); setShowDetails(true); }} style={abtn('#6366f1')}>View</button>
+                        {m.verificationStatus === 'pending' && (
+                          <>
+                            <button onClick={() => handleApprove(m._id, m.fullName)} disabled={busy} style={abtn('#10b981', busy)}>Approve</button>
+                            <button onClick={() => handleReject(m._id, m.fullName)}  disabled={busy} style={abtn('#ef4444', busy)}>Reject</button>
+                          </>
+                        )}
                         {m.verificationStatus === 'approved' && m.role !== 'admin' && (
-                          <button onClick={() => handleImpersonate(m)} disabled={busy}
-                            style={abtn('#0891b2', busy)} title="Log in as this user to see their view">
+                          <button onClick={() => handleImpersonate(m)} disabled={busy} style={abtn('#0891b2', busy)} title="Log in as this user">
                             <UserIcon /> Login as User
                           </button>
                         )}
-
-                        {/* Reset password */}
-                        <button onClick={() => openResetPw(m)} style={abtn('#f59e0b')} title="Reset this user's password">
+                        <button onClick={() => openResetPw(m)} style={abtn('#f59e0b')} title="Reset password">
                           <KeyIcon /> Reset PW
                         </button>
-
-                        {/* Delete */}
                         <button onClick={() => handleDelete(m._id, m.fullName)} disabled={busy} style={abtn('#6b7280', busy)}>Delete</button>
                       </div>
                     </td>
@@ -468,46 +580,78 @@ const Members: React.FC = () => {
       {/* ═══════════════════ ADD MEMBER MODAL ═══════════════════ */}
       {showAddModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div style={{ background: 'white', borderRadius: '12px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', padding: '24px' }}>
+          <div style={{ background: 'white', borderRadius: '12px', width: '100%', maxWidth: '540px', maxHeight: '92vh', overflowY: 'auto', padding: '24px' }}>
             <h2 style={{ margin: '0 0 20px', color: '#1e40af' }}>Add New Member</h2>
             <form onSubmit={handleAddMember}>
+
+              {/* Passport photo upload in add modal */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '0.9rem' }}>
+                  Passport-Size Photo <span style={{ color: '#6b7280', fontWeight: 400 }}>(JPG/PNG)</span>
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{ width: 64, height: 80, borderRadius: '8px', overflow: 'hidden', border: '1px solid #e5e7eb', background: '#f8fafc', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', color: '#94a3b8' }}>
+                    {addPassportPreview ? <img src={addPassportPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '👤'}
+                  </div>
+                  <input type="file" accept="image/jpeg,image/jpg,image/png" onChange={handleAddPassportChange} style={{ fontSize: '13px' }} />
+                </div>
+              </div>
+
+              {/* Text fields */}
               {([
                 { label: 'Full Name *', name: 'fullName', type: 'text', req: true },
-                { label: 'Email *', name: 'email', type: 'email', req: true },
-                { label: 'Phone *', name: 'phone', type: 'tel', req: true },
+                { label: 'Email *',     name: 'email',    type: 'email', req: true },
+                { label: 'Phone *',     name: 'phone',    type: 'tel',  req: true },
                 { label: 'Institution', name: 'institution', type: 'text', req: false },
-                { label: 'Membership', name: 'membership', type: 'text', req: false },
               ] as any[]).map(f => (
                 <div key={f.name} style={{ marginBottom: '13px' }}>
                   <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.9rem' }}>{f.label}</label>
                   <input name={f.name} type={f.type} value={(newMemberForm as any)[f.name]} onChange={handleNewMemberChange} required={f.req}
-                    style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: '8px', boxSizing: 'border-box' }} />
+                    style={inputSt} />
                 </div>
               ))}
-              {[
-                { label: 'Account Type', name: 'accountType', opts: [['student','Student'],['non_student','Non-Student']] },
-                { label: 'Role *', name: 'role', opts: [['user','User / Innovator'],['coordinator','Coordinator'],['admin','Admin']] },
-              ].map(f => (
-                <div key={f.name} style={{ marginBottom: '13px' }}>
-                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.9rem' }}>{f.label}</label>
-                  <select name={f.name} value={(newMemberForm as any)[f.name]} onChange={handleNewMemberChange}
-                    style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: '8px' }}>
-                    {f.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                  </select>
-                </div>
-              ))}
+
+              {/* Membership dropdown */}
               <div style={{ marginBottom: '13px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 500, fontSize: '0.9rem' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.9rem' }}>Club Membership</label>
+                <select name="membership" value={newMemberForm.membership} onChange={handleNewMemberChange} style={inputSt}>
+                  {MEMBERSHIP_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </div>
+
+              {/* Account type */}
+              <div style={{ marginBottom: '13px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.9rem' }}>Account Type</label>
+                <select name="accountType" value={newMemberForm.accountType} onChange={handleNewMemberChange} style={inputSt}>
+                  <option value="student">Student</option>
+                  <option value="non_student">Non-Student</option>
+                </select>
+              </div>
+
+              {/* Role dropdown */}
+              <div style={{ marginBottom: '13px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.9rem' }}>Role *</label>
+                <select name="role" value={newMemberForm.role} onChange={handleNewMemberChange} style={inputSt}>
+                  {ROLE_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+              </div>
+
+              {/* Approve immediately */}
+              <div style={{ marginBottom: '13px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 500, fontSize: '0.9rem', cursor: 'pointer' }}>
                   <input type="checkbox" name="setApproved" checked={newMemberForm.setApproved} onChange={handleNewMemberChange} />
                   Approve immediately
                 </label>
               </div>
+
+              {/* Temporary password */}
               <div style={{ marginBottom: '18px' }}>
                 <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500, fontSize: '0.9rem' }}>Temporary Password (optional)</label>
                 <input type="text" name="password" value={newMemberForm.password} onChange={handleNewMemberChange}
-                  placeholder="Leave blank → user resets later"
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: '8px', boxSizing: 'border-box' }} />
+                  placeholder="Leave blank → default set, user resets later"
+                  style={inputSt} />
               </div>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                 <button type="button" onClick={() => { setShowAddModal(false); resetAddForm(); }}
                   style={{ padding: '9px 18px', border: '1px solid #9ca3af', borderRadius: '8px', background: 'transparent', cursor: 'pointer' }}>Cancel</button>
@@ -522,30 +666,66 @@ const Members: React.FC = () => {
       {/* ═══════════════════ MEMBER DETAILS MODAL ═══════════════════ */}
       {showDetails && selected && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div style={{ background: 'white', borderRadius: '12px', width: '100%', maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto', padding: '28px' }}>
+          <div style={{ background: 'white', borderRadius: '12px', width: '100%', maxWidth: '700px', maxHeight: '92vh', overflowY: 'auto', padding: '28px' }}>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-              <div>
-                <h2 style={{ margin: '0 0 6px', color: '#1e40af' }}>{selected.fullName}</h2>
+            {/* Header with passport photo */}
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '22px', alignItems: 'flex-start' }}>
+
+              {/* Passport photo (left) */}
+              <div style={{ flexShrink: 0, textAlign: 'center' }}>
+                {selected.passportPhotoFile ? (
+                  <img
+                    src={toFetchUrl(selected.passportPhotoFile)}
+                    alt="Passport photo"
+                    onClick={() => openPassportLightbox(selected.passportPhotoFile!)}
+                    style={{ width: 90, height: 110, objectFit: 'cover', borderRadius: '10px', border: '2px solid #c7d2fe', cursor: 'zoom-in', boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}
+                    title="Click to enlarge"
+                  />
+                ) : (
+                  <div style={{ width: 90, height: 110, borderRadius: '10px', background: '#f1f5f9', border: '2px dashed #cbd5e1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#94a3b8', fontSize: '13px', fontStyle: 'italic' }}>
+                    <span style={{ fontSize: '28px' }}>👤</span>
+                    No photo
+                  </div>
+                )}
+                {selected.passportPhotoFile && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px' }}>
+                    <div style={{ fontSize: '11px', color: '#6366f1', cursor: 'pointer' }}
+                      onClick={() => openPassportLightbox(selected.passportPhotoFile!)}>
+                      🔍 Enlarge
+                    </div>
+                    <button
+                      onClick={() => handleDownloadPhoto(selected.passportPhotoFile!, selected.fullName)}
+                      style={{ background: '#6366f1', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}
+                    >
+                      ⬇ Download
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Name / badges (right) */}
+              <div style={{ flex: 1 }}>
+                <h2 style={{ margin: '0 0 8px', color: '#1e40af', fontSize: '22px' }}>{selected.fullName}</h2>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                   <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>
                     {selected.accountType === 'student' ? '🎓 Student' : '👤 Non-Student'}
                   </span>
                   <StatusBadge s={selected.verificationStatus} />
-                  <span style={{ fontSize: '0.8rem', color: '#6b7280', textTransform: 'capitalize' }}>Role: {selected.role || 'user'}</span>
+                  <RolePill role={selected.role} />
                 </div>
               </div>
+
               <button onClick={() => setShowDetails(false)}
-                style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6b7280' }}>×</button>
+                style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6b7280', flexShrink: 0 }}>×</button>
             </div>
 
             {/* Info grid */}
             <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '14px 16px', marginBottom: '18px', display: 'grid', gridTemplateColumns: '160px 1fr', gap: '9px 18px', fontSize: '0.88rem' }}>
-              <strong style={{ color: '#6b7280' }}>Member ID</strong>    <span>{selected.regNumber || selected._id.slice(-8).toUpperCase()}</span>
-              <strong style={{ color: '#6b7280' }}>Email</strong>        <span>{selected.email}</span>
-              <strong style={{ color: '#6b7280' }}>Phone</strong>        <span>{selected.phone}</span>
-              <strong style={{ color: '#6b7280' }}>Institution</strong>  <span>{selected.institution || '—'}</span>
-              <strong style={{ color: '#6b7280' }}>Membership</strong>   <span>{selected.membership || '—'}</span>
+              <strong style={{ color: '#6b7280' }}>Member ID</strong>   <span>{selected.regNumber || selected._id.slice(-8).toUpperCase()}</span>
+              <strong style={{ color: '#6b7280' }}>Email</strong>       <span>{selected.email}</span>
+              <strong style={{ color: '#6b7280' }}>Phone</strong>       <span>{selected.phone}</span>
+              <strong style={{ color: '#6b7280' }}>Institution</strong> <span>{selected.institution || '—'}</span>
+              <strong style={{ color: '#6b7280' }}>Membership</strong>  <span>{selected.membership || '—'}</span>
               {selected.accountType === 'student' && (<>
                 {selected.campus      && <><strong style={{ color: '#6b7280' }}>Campus</strong>  <span>{selected.campus}</span></>}
                 {selected.program     && <><strong style={{ color: '#6b7280' }}>Program</strong> <span>{selected.program}</span></>}
@@ -562,42 +742,93 @@ const Members: React.FC = () => {
             <h3 style={{ margin: '0 0 10px', color: '#1e40af', fontSize: '1rem' }}>Uploaded Documents</h3>
             <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '0 16px', marginBottom: '20px' }}>
               {selected.accountType === 'student' ? (
-                selected.studentIdFile ? <DocRow storedPath={selected.studentIdFile} label="Student ID" /> : <MissingDoc label="Student ID" />
-              ) : (<>
-                {selected.nationalIdFile     ? <DocRow storedPath={selected.nationalIdFile}     label="National ID / Registration ID" />    : <MissingDoc label="National ID / Registration ID" />}
-                {selected.educationProofFile ? <DocRow storedPath={selected.educationProofFile} label="Residence Proof (Village Chairman)" /> : <MissingDoc label="Residence Proof (Village Chairman)" />}
-                {selected.centerFormFile     ? <DocRow storedPath={selected.centerFormFile}     label="Registration Form from Center" />      : <MissingDoc label="Registration Form from Center" />}
-              </>)}
+                selected.studentIdFile
+                  ? <DocRow storedPath={selected.studentIdFile} label="Student ID" />
+                  : <MissingDoc label="Student ID" />
+              ) : (
+                <>
+                  {selected.nationalIdFile     ? <DocRow storedPath={selected.nationalIdFile}     label="National ID / Registration ID" />    : <MissingDoc label="National ID / Registration ID" />}
+                  {selected.educationProofFile ? <DocRow storedPath={selected.educationProofFile} label="Residence Proof (Village Chairman)" /> : <MissingDoc label="Residence Proof (Village Chairman)" />}
+                  {selected.centerFormFile     ? <DocRow storedPath={selected.centerFormFile}     label="Registration Form from Center" />      : <MissingDoc label="Registration Form from Center" />}
+                </>
+              )}
             </div>
 
             {/* Admin actions */}
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-              {selected.verificationStatus === 'pending' && (<>
-                <button onClick={() => handleApprove(selected._id, selected.fullName)}
-                  style={{ padding: '9px 18px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>✓ Approve</button>
-                <button onClick={() => handleReject(selected._id, selected.fullName)}
-                  style={{ padding: '9px 18px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>✕ Reject</button>
-              </>)}
-
-              {/* Login as User */}
+              {selected.verificationStatus === 'pending' && (
+                <>
+                  <button onClick={() => handleApprove(selected._id, selected.fullName)}
+                    style={{ padding: '9px 18px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>✓ Approve</button>
+                  <button onClick={() => handleReject(selected._id, selected.fullName)}
+                    style={{ padding: '9px 18px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>✕ Reject</button>
+                </>
+              )}
               {selected.verificationStatus === 'approved' && selected.role !== 'admin' && (
                 <button onClick={() => { setShowDetails(false); handleImpersonate(selected); }}
                   style={{ padding: '9px 18px', background: '#0891b2', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <UserIcon /> Login as This User
                 </button>
               )}
-
-              {/* Reset password */}
               <button onClick={() => { setShowDetails(false); openResetPw(selected); }}
                 style={{ padding: '9px 18px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <KeyIcon /> Reset Password
               </button>
-
+              <button onClick={() => handleDelete(selected._id, selected.fullName)}
+                style={{ padding: '9px 18px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
+                🗑 Delete
+              </button>
               <button onClick={() => setShowDetails(false)}
                 style={{ marginLeft: 'auto', padding: '9px 22px', background: '#6b7280', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════ PASSPORT PHOTO LIGHTBOX ═══════════════════ */}
+      {passportLightbox && (
+        <div
+          onClick={() => setPassportLightbox(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, cursor: 'zoom-out' }}
+        >
+          <button onClick={() => setPassportLightbox(false)}
+            style={{ position: 'absolute', top: 20, right: 24, background: 'rgba(255,255,255,0.12)', border: 'none', color: 'white', width: 40, height: 40, borderRadius: '50%', fontSize: '18px', cursor: 'pointer' }}>
+            ✕
+          </button>
+          <img
+            src={passportSrc}
+            alt="Passport photo"
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '80vw', maxHeight: '80vh', borderRadius: '12px', boxShadow: '0 24px 64px rgba(0,0,0,0.6)', objectFit: 'contain', cursor: 'default', display: 'block' }}
+          />
+          {/* Download button in lightbox */}
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ position: 'absolute', bottom: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}
+          >
+            <button
+              onClick={() => {
+                const member = selected || members.find(m => toFetchUrl(m.passportPhotoFile || '') === passportSrc);
+                if (member?.passportPhotoFile) {
+                  handleDownloadPhoto(member.passportPhotoFile, member.fullName);
+                } else {
+                  // Fallback: open in new tab for manual save
+                  window.open(passportSrc, '_blank');
+                }
+              }}
+              style={{
+                background: '#6366f1', color: 'white', border: 'none',
+                borderRadius: '8px', padding: '10px 24px',
+                fontWeight: 700, fontSize: '14px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '8px',
+                boxShadow: '0 4px 16px rgba(99,102,241,0.5)',
+              }}
+            >
+              ⬇ Download Photo
+            </button>
+            <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>Click outside or ✕ to close</span>
           </div>
         </div>
       )}
@@ -609,33 +840,17 @@ const Members: React.FC = () => {
             <h2 style={{ margin: '0 0 6px', color: '#b45309' }}>🔑 Reset Password</h2>
             <p style={{ margin: '0 0 20px', color: '#6b7280', fontSize: '0.9rem' }}>
               Set a new password for <strong>{resetTarget.fullName}</strong> ({resetTarget.email}).
-              They can then log in with this new password.
             </p>
-
             {resetMsg && (
-              <div style={{
-                padding: '12px 14px', borderRadius: '8px', marginBottom: '16px',
-                background: resetMsg.startsWith('✅') ? '#d1fae5' : '#fee2e2',
-                color:      resetMsg.startsWith('✅') ? '#065f46' : '#991b1b',
-                fontSize: '0.88rem', lineHeight: '1.5',
-              }}>
+              <div style={{ padding: '12px 14px', borderRadius: '8px', marginBottom: '16px', background: resetMsg.startsWith('✅') ? '#d1fae5' : '#fee2e2', color: resetMsg.startsWith('✅') ? '#065f46' : '#991b1b', fontSize: '0.88rem', lineHeight: '1.5' }}>
                 {resetMsg}
               </div>
             )}
-
             <form onSubmit={handleResetPassword}>
               <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '0.9rem' }}>
-                  New Password (min 6 characters)
-                </label>
-                <input
-                  type="text"
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  placeholder="Enter new password"
-                  autoFocus
-                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: '8px', boxSizing: 'border-box', fontSize: '1rem' }}
-                />
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '0.9rem' }}>New Password (min 6 characters)</label>
+                <input type="text" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Enter new password" autoFocus
+                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: '8px', boxSizing: 'border-box', fontSize: '1rem' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                 <button type="button" onClick={() => { setShowResetPw(false); setResetMsg(''); }}

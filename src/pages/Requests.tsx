@@ -82,6 +82,27 @@ const Requests: React.FC = () => {
   const [historyPage, setHistoryPage] = useState(1);
   const HISTORY_PER_PAGE = 5;
 
+  // ═══════════════════════════════════════════════════════════════
+  // ROLE-BASED ACCESS CONTROL
+  // Check if current user is admin for privacy masking
+  // ═══════════════════════════════════════════════════════════════
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
+
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem('currentUser');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        setIsAdmin(user.role === 'admin');
+        setCurrentUserId(user.id || user._id || '');
+      }
+    } catch (err) {
+      console.error('Failed to parse current user:', err);
+      setIsAdmin(false);
+    }
+  }, []);
+
   // Direction image state
   const [showDirection, setShowDirection] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -92,6 +113,17 @@ const Requests: React.FC = () => {
   const [fingerprintLoading, setFingerprintLoading] = useState(false);
   const [fingerprintError, setFingerprintError] = useState('');
   const [fingerprintSuccess, setFingerprintSuccess] = useState(false);
+
+  // ═══════════════════════════════════════════════════════════════
+  // PRIVACY HELPER FUNCTION
+  // Masks phone number for non-admin users viewing other users' data
+  // ═══════════════════════════════════════════════════════════════
+  const maskPhone = (phone: string | undefined, ownerId: string): string => {
+    if (!phone) return '—';
+    if (isAdmin) return phone; // Admins see everything
+    if (ownerId === currentUserId) return phone; // Users see their own phone
+    return '•••••••'; // Hide other users' phones
+  };
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -788,7 +820,7 @@ const Requests: React.FC = () => {
                         )}
                       </div>
                     </td>
-                    <td>{req.userId?.phone || '—'}</td>
+                    <td>{maskPhone(req.userId?.phone, req.userId?._id || '')}</td>
                     <td style={{ maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {req.carriedItems || '—'}
                     </td>

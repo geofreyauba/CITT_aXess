@@ -2537,3 +2537,1026 @@ body.dark .role-badge {
   background: #1a1a1a;   /* dark to match the logo on the grey background */
   animation: splashBounce 0.9s ease-in-out infinite;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PENDING RETURNS PAGE — paste at the END of App.css
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Page shell ─────────────────────────────────────────────────────────── */
+.pr-page {
+  padding: 0;
+}
+
+.pr-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+}
+
+.pr-refresh-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+  background: var(--white-glass);
+  color: var(--soft-blue);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pr-refresh-btn:hover {
+  background: var(--soft-blue);
+  color: #fff;
+  border-color: var(--soft-blue);
+}
+
+/* ── Summary stat pills ─────────────────────────────────────────────────── */
+.pr-stat-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.pr-stat-pill {
+  flex: 1;
+  min-width: 140px;
+  padding: 16px 20px;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: var(--shadow-soft);
+}
+
+.pr-stat-pill.orange {
+  background: linear-gradient(135deg, #fff7ed, #ffedd5);
+  border: 1px solid #fed7aa;
+}
+
+.pr-stat-pill.red {
+  background: linear-gradient(135deg, #fff1f2, #fee2e2);
+  border: 1px solid #fecaca;
+}
+
+.pr-stat-pill.purple {
+  background: linear-gradient(135deg, #faf5ff, #ede9fe);
+  border: 1px solid #ddd6fe;
+}
+
+.pr-stat-number {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--soft-blue-dark);
+}
+
+.pr-stat-pill.orange .pr-stat-number { color: #c2410c; }
+.pr-stat-pill.red    .pr-stat-number { color: #b91c1c; }
+.pr-stat-pill.purple .pr-stat-number { color: #6d28d9; }
+
+.pr-stat-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Tabs ───────────────────────────────────────────────────────────────── */
+.pr-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 1.25rem;
+  background: var(--gray-light);
+  padding: 4px;
+  border-radius: 12px;
+  width: fit-content;
+}
+
+.pr-tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 20px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: var(--muted-text);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+
+.pr-tab:hover {
+  color: var(--soft-blue-dark);
+}
+
+.pr-tab-active {
+  background: #fff;
+  color: var(--soft-blue);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+}
+
+.pr-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pr-tab-badge-orange { background: #ffedd5; color: #c2410c; }
+.pr-tab-badge-red    { background: #fee2e2; color: #b91c1c; }
+
+/* ── Search bar ─────────────────────────────────────────────────────────── */
+.pr-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--white-glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 10px 16px;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.pr-search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.pr-search-input::placeholder {
+  color: var(--muted-text);
+}
+
+.pr-search-clear {
+  border: none;
+  background: none;
+  color: var(--muted-text);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.pr-search-clear:hover {
+  background: var(--gray-light);
+}
+
+/* ── Overdue warning banner ─────────────────────────────────────────────── */
+.pr-overdue-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-left: 4px solid #f97316;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 1.25rem;
+  font-size: 14px;
+  color: #9a3412;
+}
+
+/* ── Table wrapper ──────────────────────────────────────────────────────── */
+.pr-table-wrap {
+  background: var(--white-glass);
+  border-radius: 16px;
+  box-shadow: var(--shadow-glass);
+  overflow-x: auto;
+  border: 1px solid var(--glass-border);
+}
+
+.pr-table {
+  min-width: 900px;
+}
+
+/* Highlight overdue rows */
+.pr-row-overdue {
+  background: rgba(254, 226, 226, 0.25);
+}
+
+.pr-row-overdue:hover {
+  background: rgba(254, 226, 226, 0.45) !important;
+}
+
+/* ── Member cell ────────────────────────────────────────────────────────── */
+.pr-member-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pr-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pr-avatar-red {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+/* ── Contact links ──────────────────────────────────────────────────────── */
+.pr-contact-link {
+  color: var(--soft-blue);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.pr-contact-link:hover {
+  text-decoration: underline;
+}
+
+.pr-contact-urgent {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+/* ── Duration badge ─────────────────────────────────────────────────────── */
+.pr-duration-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Pulse animation for long-overdue */
+.pr-duration-pulse {
+  animation: prPulse 2s ease-in-out infinite;
+}
+
+@keyframes prPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.65; }
+}
+
+/* ── Urgency badge ──────────────────────────────────────────────────────── */
+.pr-urgency-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ── Action buttons in table ────────────────────────────────────────────── */
+.pr-approve-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: none;
+  background: #10b981;
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+
+.pr-approve-btn:hover:not(:disabled) {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+.pr-approve-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pr-reject-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #ef4444;
+  background: transparent;
+  color: #ef4444;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+
+.pr-reject-btn:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.pr-reject-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ── Call / Email quick-action buttons ──────────────────────────────────── */
+.pr-call-btn,
+.pr-email-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+
+.pr-call-btn {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.pr-call-btn:hover {
+  background: #16a34a;
+  color: #fff;
+}
+
+.pr-email-btn {
+  background: #ede9fe;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
+}
+
+.pr-email-btn:hover {
+  background: #7c3aed;
+  color: #fff;
+}
+
+/* ── Empty state ────────────────────────────────────────────────────────── */
+.pr-empty {
+  background: var(--white-glass);
+  border-radius: 16px;
+  padding: 56px 32px;
+  text-align: center;
+  box-shadow: var(--shadow-glass);
+  border: 1px solid var(--glass-border);
+}
+
+.pr-empty h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--soft-blue-dark);
+  margin: 16px 0 8px;
+}
+
+.pr-empty p {
+  color: var(--muted-text);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ── Loading state ──────────────────────────────────────────────────────── */
+.pr-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 32px;
+  gap: 16px;
+  color: var(--muted-text);
+}
+
+.pr-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--glass-border);
+  border-top-color: var(--soft-blue);
+  border-radius: 50%;
+  animation: prSpin 0.8s linear infinite;
+}
+
+@keyframes prSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Error box ──────────────────────────────────────────────────────────── */
+.pr-error-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 32px;
+  text-align: center;
+  gap: 12px;
+}
+
+.pr-error-box h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #b91c1c;
+  margin: 0;
+}
+
+.pr-error-box p {
+  color: var(--muted-text);
+  margin: 0;
+  font-size: 14px;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .pr-stat-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .pr-page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pr-refresh-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .pr-tabs {
+    width: 100%;
+  }
+
+  .pr-tab {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   aXess — DARK MODE OVERRIDES  (paste entire block at bottom of app.css)
+   Activated when Settings writes  data-theme="dark"  onto <html>
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. CSS VARIABLES ───────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg-primary:     #0a0a0a;   /* true black — page background              */
+  --bg-secondary:   #111111;   /* cards / panels                            */
+  --bg-tertiary:    #1a1a1a;   /* hover surfaces / table header             */
+  --surface:        #111111;
+  --surface-hover:  #1a1a1a;
+
+  --text-primary:   #f1f5f9;
+  --text-secondary: #94a3b8;
+  --muted-text:     #64748b;
+
+  --border-color:   #2a2a2a;
+  --glass-border:   rgba(255,255,255,0.07);
+  --white-glass:    rgba(255,255,255,0.04);
+
+  --soft-blue:      #7dd3fc;
+  --soft-blue-dark: #38bdf8;
+
+  --shadow-soft:    0 2px 8px rgba(0,0,0,0.6);
+  --card-shadow:    0 4px 20px rgba(0,0,0,0.7);
+}
+
+/* ── 2. PAGE / ROOT ─────────────────────────────────────────────────────── */
+[data-theme="dark"] body,
+[data-theme="dark"] #root,
+[data-theme="dark"] .app-wrapper,
+[data-theme="dark"] .main-content,
+[data-theme="dark"] .page-content,
+[data-theme="dark"] .content-area,
+[data-theme="dark"] main {
+  background: #0a0a0a !important;
+  color: #f1f5f9 !important;
+}
+
+/* ── 3. SIDEBAR — pure black, NO dark-blue ──────────────────────────────── */
+[data-theme="dark"] .sidebar,
+[data-theme="dark"] aside,
+[data-theme="dark"] nav.sidebar {
+  background: #000000 !important;
+  border-right: 1px solid #1f1f1f !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] .sidebar-brand,
+[data-theme="dark"] .sidebar .logo,
+[data-theme="dark"] .sidebar h1,
+[data-theme="dark"] .sidebar h2 {
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .nav-item,
+[data-theme="dark"] .nav-link,
+[data-theme="dark"] .sidebar a {
+  color: #9ca3af !important;
+  background: transparent !important;
+}
+
+[data-theme="dark"] .nav-item.active,
+[data-theme="dark"] .nav-link.active,
+[data-theme="dark"] .sidebar a.active {
+  background: rgba(99,102,241,0.2) !important;
+  color: #a5b4fc !important;
+  border-radius: 8px !important;
+}
+
+[data-theme="dark"] .nav-item:hover,
+[data-theme="dark"] .nav-link:hover,
+[data-theme="dark"] .sidebar a:hover {
+  background: rgba(255,255,255,0.05) !important;
+  color: #e2e8f0 !important;
+  border-radius: 8px !important;
+}
+
+/* Sidebar logout button */
+[data-theme="dark"] .sidebar .logout-btn,
+[data-theme="dark"] .sidebar button {
+  background: rgba(99,102,241,0.15) !important;
+  color: #a5b4fc !important;
+  border-color: rgba(99,102,241,0.3) !important;
+}
+[data-theme="dark"] .sidebar button:hover {
+  background: rgba(99,102,241,0.25) !important;
+}
+
+/* ── 4. HEADER ──────────────────────────────────────────────────────────── */
+[data-theme="dark"] .header,
+[data-theme="dark"] header {
+  background: #050505 !important;
+  border-bottom: 1px solid #1f1f1f !important;
+  box-shadow: 0 1px 12px rgba(0,0,0,0.6) !important;
+}
+
+/* ── 5. PROFILE DROPDOWN ────────────────────────────────────────────────── */
+[data-theme="dark"] .header [style*="background: #fff"],
+[data-theme="dark"] .header [style*="background: rgb(255, 255, 255)"],
+[data-theme="dark"] .header [style*="background:#fff"],
+[data-theme="dark"] .header [style*="background: white"] {
+  background: #161616 !important;
+  border-color: #2a2a2a !important;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.8) !important;
+}
+
+[data-theme="dark"] .header button[style*="color: #1e293b"],
+[data-theme="dark"] .header button[style*="color: rgb(30, 41, 59)"] {
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] .header button:hover {
+  background: rgba(255,255,255,0.06) !important;
+}
+[data-theme="dark"] .header [style*="border-top: 1px solid #f1f5f9"] {
+  border-top-color: #2a2a2a !important;
+  background: #161616 !important;
+}
+[data-theme="dark"] .header span[style*="background: #e0f2fe"] { background: rgba(14,165,233,0.12) !important; }
+[data-theme="dark"] .header span[style*="background: #f0fdf4"] { background: rgba(16,185,129,0.12) !important; }
+[data-theme="dark"] .header span[style*="background: #fee2e2"] { background: rgba(239,68,68,0.12) !important; }
+
+/* ── 6. MEMBERS PAGE — main content area ────────────────────────────────── */
+
+/* Page wrapper / background */
+[data-theme="dark"] [style*="padding: '24px'"],
+[data-theme="dark"] [style*="padding: 24px"],
+[data-theme="dark"] [style*="background: '#f8fafc'"],
+[data-theme="dark"] [style*="background: #f8fafc"],
+[data-theme="dark"] [style*="minHeight: '100vh'"],
+[data-theme="dark"] [style*="min-height: 100vh"] {
+  background: #0a0a0a !important;
+}
+
+/* White card wrapping the table */
+[data-theme="dark"] [style*="background: white"],
+[data-theme="dark"] [style*="background: #fff"],
+[data-theme="dark"] [style*="background: rgb(255, 255, 255)"],
+[data-theme="dark"] [style*="background: 'white'"],
+[data-theme="dark"] [style*="background: '#fff'"] {
+  background: #111111 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Members page h1 title */
+[data-theme="dark"] h1[style*="color: '#0f172a'"],
+[data-theme="dark"] h1[style*="color: #0f172a"],
+[data-theme="dark"] [style*="color: '#0f172a'"],
+[data-theme="dark"] [style*="color: #0f172a"] {
+  color: #f1f5f9 !important;
+}
+
+/* Search input & filter selects */
+[data-theme="dark"] input[type="text"],
+[data-theme="dark"] input[type="search"],
+[data-theme="dark"] input[type="email"],
+[data-theme="dark"] input[type="tel"],
+[data-theme="dark"] input[type="password"],
+[data-theme="dark"] select {
+  background: #1a1a1a !important;
+  border-color: #2a2a2a !important;
+  color: #f1f5f9 !important;
+}
+[data-theme="dark"] input::placeholder { color: #4b5563 !important; }
+[data-theme="dark"] input:focus,
+[data-theme="dark"] select:focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.15) !important;
+  outline: none !important;
+}
+
+/* ── TABLE ────────────────────────────────────────────────────────────────
+   The Members table has a white card wrapper + thead/tbody rows            */
+[data-theme="dark"] table {
+  background: #111111 !important;
+  color: #f1f5f9 !important;
+}
+
+[data-theme="dark"] thead tr,
+[data-theme="dark"] thead tr th,
+[data-theme="dark"] [style*="background: '#f1f5f9'"],
+[data-theme="dark"] [style*="background: #f1f5f9"] {
+  background: #1a1a1a !important;
+  color: #94a3b8 !important;
+  border-bottom: 1px solid #2a2a2a !important;
+}
+
+[data-theme="dark"] thead th {
+  color: #94a3b8 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="dark"] tbody tr {
+  border-bottom: 1px solid #1f1f1f !important;
+  background: #111111 !important;
+}
+
+[data-theme="dark"] tbody tr:hover {
+  background: #181818 !important;
+}
+
+[data-theme="dark"] td,
+[data-theme="dark"] th {
+  color: #e2e8f0 !important;
+}
+
+/* Photo cell placeholder */
+[data-theme="dark"] [style*="background: '#f1f5f9'"][style*="border: '1px dashed"],
+[data-theme="dark"] [style*="background: #f1f5f9"][style*="border: 1px dashed"] {
+  background: #1a1a1a !important;
+  border-color: #333 !important;
+}
+
+/* ── 7. MEMBER DETAILS MODAL ─────────────────────────────────────────────── */
+[data-theme="dark"] [style*="background: 'white'"],
+[data-theme="dark"] [style*="background: 'rgba(0,0,0,0.6)'"] > div,
+[data-theme="dark"] [style*="background: rgba(0,0,0"] > div[style*="background: white"],
+[data-theme="dark"] [style*="background: rgba(0,0,0"] > div[style*="background: #fff"] {
+  background: #111111 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Info grid inside modal (the grey section) */
+[data-theme="dark"] [style*="background: '#f8fafc'"],
+[data-theme="dark"] [style*="background: #f8fafc"] {
+  background: #1a1a1a !important;
+  border-color: #2a2a2a !important;
+}
+
+/* Modal headings */
+[data-theme="dark"] [style*="color: '#1e40af'"],
+[data-theme="dark"] [style*="color: #1e40af"] {
+  color: #818cf8 !important;
+}
+
+/* strong labels inside info grid */
+[data-theme="dark"] [style*="color: '#6b7280'"],
+[data-theme="dark"] [style*="color: #6b7280"] {
+  color: #64748b !important;
+}
+
+/* ── 8. PAGINATION ──────────────────────────────────────────────────────── */
+[data-theme="dark"] [style*="border: '1px solid #d1d5db'"],
+[data-theme="dark"] [style*="border: 1px solid #d1d5db"] {
+  background: #1a1a1a !important;
+  border-color: #2a2a2a !important;
+  color: #e2e8f0 !important;
+}
+
+/* ── 9. ADD MEMBER MODAL ────────────────────────────────────────────────── */
+[data-theme="dark"] [style*="maxWidth: '540px'"][style*="background: white"],
+[data-theme="dark"] [style*="maxWidth: '700px'"][style*="background: white"],
+[data-theme="dark"] [style*="maxWidth: '420px'"][style*="background: white"] {
+  background: #111111 !important;
+  color: #f1f5f9 !important;
+}
+
+[data-theme="dark"] [style*="background: '#1e40af'"] {
+  background: #312e81 !important;
+}
+
+/* Input style inside modals */
+[data-theme="dark"] [style*="border: '1px solid #d1d5db'"][style*="border-radius: '8px'"] {
+  background: #1a1a1a !important;
+  border-color: #2a2a2a !important;
+  color: #f1f5f9 !important;
+}
+
+/* ── 10. SETTINGS PAGE ──────────────────────────────────────────────────── */
+[data-theme="dark"] .settings-grid { background: transparent !important; }
+
+[data-theme="dark"] .settings-card {
+  background: #111111 !important;
+  border: 1px solid #2a2a2a !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+  color: #f1f5f9 !important;
+}
+
+[data-theme="dark"] .settings-card h2,
+[data-theme="dark"] .card-header { color: #f1f5f9 !important; border-bottom-color: #2a2a2a !important; }
+[data-theme="dark"] .card-header svg { color: #7dd3fc !important; }
+
+[data-theme="dark"] .settings-card input[type="text"],
+[data-theme="dark"] .settings-card input[type="email"],
+[data-theme="dark"] .settings-card input[type="tel"],
+[data-theme="dark"] .settings-card input[type="password"],
+[data-theme="dark"] .settings-card textarea,
+[data-theme="dark"] .settings-card select {
+  background: #0a0a0a !important;
+  border-color: #2a2a2a !important;
+  color: #f1f5f9 !important;
+}
+
+[data-theme="dark"] .settings-card input:disabled {
+  background: #151515 !important;
+  color: #374151 !important;
+  cursor: not-allowed !important;
+}
+
+[data-theme="dark"] .settings-card label,
+[data-theme="dark"] .form-group label { color: #cbd5e1 !important; }
+[data-theme="dark"] .toggle-row { color: #cbd5e1 !important; }
+[data-theme="dark"] .settings-card .security-note { color: #4b5563 !important; }
+
+[data-theme="dark"] .settings-card .primary-btn {
+  background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
+  color: #fff !important;
+}
+[data-theme="dark"] .settings-card .secondary-btn {
+  background: #1a1a1a !important;
+  color: #cbd5e1 !important;
+  border-color: #2a2a2a !important;
+}
+[data-theme="dark"] .settings-card .secondary-btn:hover { background: #222 !important; }
+
+[data-theme="dark"] .settings-card [style*="background: #d1fae5"] {
+  background: rgba(16,185,129,0.12) !important; color: #6ee7b7 !important;
+}
+[data-theme="dark"] .settings-card [style*="background: #fee2e2"],
+[data-theme="dark"] .settings-card [style*="background: #fef2f2"] {
+  background: rgba(239,68,68,0.12) !important; color: #fca5a5 !important;
+}
+
+/* ── 11. SECTION TITLES ─────────────────────────────────────────────────── */
+[data-theme="dark"] .section-title,
+[data-theme="dark"] h1, [data-theme="dark"] h2, [data-theme="dark"] h3 {
+  color: #f1f5f9 !important;
+}
+
+/* ── 12. SCROLLBARS ─────────────────────────────────────────────────────── */
+[data-theme="dark"] ::-webkit-scrollbar { width: 5px; height: 5px; }
+[data-theme="dark"] ::-webkit-scrollbar-track { background: #0a0a0a; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+
+/* ── 13. GLOBAL INLINE STYLE OVERRIDES ──────────────────────────────────── */
+/* Catch any remaining hardcoded light colours from inline styles            */
+[data-theme="dark"] [style*="color: #374151"]  { color: #cbd5e1 !important; }
+[data-theme="dark"] [style*="color: #1e293b"]  { color: #e2e8f0 !important; }
+[data-theme="dark"] [style*="color: #111827"]  { color: #f1f5f9 !important; }
+[data-theme="dark"] [style*="color: #6b7280"]  { color: #94a3b8 !important; }
+[data-theme="dark"] [style*="color: #9ca3af"]  { color: #64748b !important; }
+[data-theme="dark"] [style*="color: #475569"]  { color: #94a3b8 !important; }
+[data-theme="dark"] [style*="color: #0f172a"]  { color: #f1f5f9 !important; }
+
+[data-theme="dark"] [style*="border-bottom: 1px solid #e5e7eb"] { border-bottom-color: #1f1f1f !important; }
+[data-theme="dark"] [style*="border: 1px solid #e5e7eb"]        { border-color: #2a2a2a !important; }
+[data-theme="dark"] [style*="border: 2px solid #e5e7eb"]        { border-color: #2a2a2a !important; }
+[data-theme="dark"] [style*="borderBottom: '1px solid #e5e7eb'"]{ border-bottom-color: #1f1f1f !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PENDING RETURNS PAGE — DARK MODE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Page wrapper ────────────────────────────────────────────────────────── */
+[data-theme="dark"] .pending-returns-page,
+[data-theme="dark"] [class*="pending"] {
+  background: #0a0a0a !important;
+  color: #f1f5f9 !important;
+}
+
+/* ── Page title & subtitle ───────────────────────────────────────────────── */
+[data-theme="dark"] [style*="color: '#1e293b'"],
+[data-theme="dark"] [style*="color: '#374151'"],
+[data-theme="dark"] [style*="color: '#6b7280'"],
+[data-theme="dark"] [style*="color: '#64748b'"] {
+  color: #94a3b8 !important;
+}
+
+/* ── STAT CARDS (Awaiting / Overdue / Critical) ──────────────────────────── */
+
+/* Awaiting Approval — was light orange/cream */
+[data-theme="dark"] [style*="background: '#fffbeb'"],
+[data-theme="dark"] [style*="background: #fffbeb"],
+[data-theme="dark"] [style*="background: 'rgb(255, 251, 235)'"],
+[data-theme="dark"] [style*="background: '#fef3c7'"],
+[data-theme="dark"] [style*="background: #fef3c7"] {
+  background: rgba(245,158,11,0.1) !important;
+  border: 1px solid rgba(245,158,11,0.25) !important;
+}
+
+/* Overdue — was light red/pink */
+[data-theme="dark"] [style*="background: '#fff1f2'"],
+[data-theme="dark"] [style*="background: #fff1f2"],
+[data-theme="dark"] [style*="background: '#fee2e2'"],
+[data-theme="dark"] [style*="background: #fee2e2"],
+[data-theme="dark"] [style*="background: '#fef2f2'"],
+[data-theme="dark"] [style*="background: #fef2f2"] {
+  background: rgba(239,68,68,0.1) !important;
+  border: 1px solid rgba(239,68,68,0.25) !important;
+}
+
+/* Critical — was light purple/lavender */
+[data-theme="dark"] [style*="background: '#f5f3ff'"],
+[data-theme="dark"] [style*="background: #f5f3ff"],
+[data-theme="dark"] [style*="background: '#ede9fe'"],
+[data-theme="dark"] [style*="background: #ede9fe"],
+[data-theme="dark"] [style*="background: '#eef2ff'"],
+[data-theme="dark"] [style*="background: #eef2ff"] {
+  background: rgba(139,92,246,0.1) !important;
+  border: 1px solid rgba(139,92,246,0.25) !important;
+}
+
+/* Stat card numbers — keep their accent colours but make readable */
+[data-theme="dark"] [style*="color: '#d97706'"],
+[data-theme="dark"] [style*="color: #d97706"],
+[data-theme="dark"] [style*="color: '#f59e0b'"],
+[data-theme="dark"] [style*="color: #f59e0b"] {
+  color: #fbbf24 !important;
+}
+[data-theme="dark"] [style*="color: '#dc2626'"],
+[data-theme="dark"] [style*="color: #dc2626"],
+[data-theme="dark"] [style*="color: '#ef4444'"],
+[data-theme="dark"] [style*="color: #ef4444"] {
+  color: #f87171 !important;
+}
+[data-theme="dark"] [style*="color: '#7c3aed'"],
+[data-theme="dark"] [style*="color: #7c3aed"],
+[data-theme="dark"] [style*="color: '#8b5cf6'"],
+[data-theme="dark"] [style*="color: #8b5cf6"] {
+  color: #a78bfa !important;
+}
+
+/* Stat card labels (AWAITING APPROVAL, OVERDUE, CRITICAL text) */
+[data-theme="dark"] [style*="color: '#92400e'"],
+[data-theme="dark"] [style*="color: #92400e"] { color: #fbbf24 !important; }
+[data-theme="dark"] [style*="color: '#991b1b'"],
+[data-theme="dark"] [style*="color: #991b1b"] { color: #f87171 !important; }
+[data-theme="dark"] [style*="color: '#5b21b6'"],
+[data-theme="dark"] [style*="color: #5b21b6"] { color: #a78bfa !important; }
+
+/* ── TAB BUTTONS (Return Requests / Overdue Keys) ────────────────────────── */
+[data-theme="dark"] [style*="background: '#f0fdf4'"],
+[data-theme="dark"] [style*="background: #f0fdf4"] {
+  background: rgba(16,185,129,0.12) !important;
+  border-color: rgba(16,185,129,0.3) !important;
+  color: #34d399 !important;
+}
+[data-theme="dark"] [style*="background: '#fef3c7'"][style*="border"] {
+  background: rgba(245,158,11,0.12) !important;
+  border-color: rgba(245,158,11,0.3) !important;
+  color: #fbbf24 !important;
+}
+
+/* Inactive tab */
+[data-theme="dark"] [style*="background: '#f1f5f9'"][style*="border-radius"],
+[data-theme="dark"] [style*="background: #f1f5f9"][style*="border-radius"] {
+  background: #1a1a1a !important;
+  color: #94a3b8 !important;
+  border-color: #2a2a2a !important;
+}
+
+/* ── SEARCH BAR ──────────────────────────────────────────────────────────── */
+[data-theme="dark"] [style*="background: '#f8fafc'"][style*="border"] {
+  background: #111111 !important;
+  border-color: #2a2a2a !important;
+  color: #f1f5f9 !important;
+}
+
+/* ── TABLE CONTAINER ─────────────────────────────────────────────────────── */
+[data-theme="dark"] [style*="background: '#1e293b'"],
+[data-theme="dark"] [style*="background: #1e293b"] {
+  background: #111111 !important;
+  border-color: #2a2a2a !important;
+}
+
+/* Table header row */
+[data-theme="dark"] [style*="background: '#0f172a'"],
+[data-theme="dark"] [style*="background: #0f172a"] {
+  background: #000000 !important;
+  color: #64748b !important;
+}
+
+/* Table header text */
+[data-theme="dark"] [style*="color: '#94a3b8'"],
+[data-theme="dark"] [style*="color: #94a3b8"] {
+  color: #64748b !important;
+}
+
+/* Table body rows */
+[data-theme="dark"] [style*="borderBottom: '1px solid #1e293b'"],
+[data-theme="dark"] [style*="border-bottom: 1px solid #1e293b"],
+[data-theme="dark"] [style*="borderBottom: '1px solid #334155'"],
+[data-theme="dark"] [style*="border-bottom: 1px solid #334155"] {
+  border-bottom-color: #1f1f1f !important;
+}
+
+/* Member avatar circle (letter avatar) */
+[data-theme="dark"] [style*="background: '#3b82f6'"],
+[data-theme="dark"] [style*="background: #3b82f6"] {
+  background: #2563eb !important;
+}
+
+/* Contact info */
+[data-theme="dark"] [style*="color: '#e2e8f0'"],
+[data-theme="dark"] [style*="color: #e2e8f0"] { color: #cbd5e1 !important; }
+[data-theme="dark"] [style*="color: '#cbd5e1'"],
+[data-theme="dark"] [style*="color: #cbd5e1"] { color: #94a3b8 !important; }
+[data-theme="dark"] [style*="color: '#94a3b8'"],
+[data-theme="dark"] [style*="color: #94a3b8"] { color: #64748b !important; }
+
+/* Room badge (teal circle) */
+[data-theme="dark"] [style*="background: '#0d9488'"],
+[data-theme="dark"] [style*="background: #0d9488"],
+[data-theme="dark"] [style*="background: '#0f766e'"],
+[data-theme="dark"] [style*="background: #0f766e"] {
+  background: #0d9488 !important;
+}
+
+/* Time held badge */
+[data-theme="dark"] [style*="background: '#fef3c7'"][style*="color: '#d97706'"] {
+  background: rgba(245,158,11,0.15) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(245,158,11,0.2) !important;
+}
+[data-theme="dark"] [style*="background: '#fee2e2'"][style*="color: '#dc2626'"] {
+  background: rgba(239,68,68,0.15) !important;
+  color: #f87171 !important;
+  border: 1px solid rgba(239,68,68,0.2) !important;
+}
+[data-theme="dark"] [style*="background: '#ede9fe'"][style*="color: '#7c3aed'"] {
+  background: rgba(139,92,246,0.15) !important;
+  color: #a78bfa !important;
+  border: 1px solid rgba(139,92,246,0.2) !important;
+}
+
+/* ── PDF / FILE PREVIEW MODAL ────────────────────────────────────────────── */
+[data-theme="dark"] [style*="background: '#1e40af'"] {
+  background: #312e81 !important;
+}
+[data-theme="dark"] [style*="background: '#f8fafc'"][style*="border-top"] {
+  background: #111111 !important;
+  border-top-color: #2a2a2a !important;
+}
+
+/* ── EMPTY STATE ─────────────────────────────────────────────────────────── */
+[data-theme="dark"] [style*="color: '#64748b'"] { color: #475569 !important; }
+[data-theme="dark"] [style*="color: '#475569'"] { color: #374151 !important; }
+
+/* ── OVERDUE KEYS TAB — no items message ─────────────────────────────────── */
+[data-theme="dark"] [style*="background: '#f8fafc'"][style*="border-radius"][style*="padding"] {
+  background: #111111 !important;
+  border-color: #2a2a2a !important;
+  color: #94a3b8 !important;
+}

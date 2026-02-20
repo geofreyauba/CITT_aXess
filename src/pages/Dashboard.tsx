@@ -32,6 +32,19 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // ── Read user role from localStorage ───────────────────────────────────
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('currentUser');
+      if (stored) {
+        const u = JSON.parse(stored);
+        setIsAdmin(u.role === 'admin');
+      }
+    } catch {}
+  }, []);
+
   useEffect(() => {
     loadStats();
   }, []);
@@ -80,22 +93,27 @@ const Dashboard: React.FC = () => {
       <h1 className="section-title">Overview</h1>
 
       <div className="stat-cards">
+        {/* ── Total Users: admin only can click ── */}
         <StatCard
           type="users"
           value={stats.totalMembers.toLocaleString()}
           label="Total Users"
           color="blue"
           notifications={stats.pendingVerifications}
-          onClick={() => navigate('/members')}
+          onClick={isAdmin ? () => navigate('/members') : undefined}
         />
+
+        {/* ── Total Rooms: admin only can click ── */}
         <StatCard
           type="rooms"
           value={stats.totalRooms.toLocaleString()}
           label="Total Rooms"
           color="green"
           notifications={stats.totalRooms - stats.availableRooms}
-          onClick={() => navigate('/rooms')}
+          onClick={isAdmin ? () => navigate('/rooms') : undefined}
         />
+
+        {/* ── Total Requests: all users can click (it's their own requests page) ── */}
         <StatCard
           type="requests"
           value={stats.totalRequests.toLocaleString()}
@@ -104,28 +122,30 @@ const Dashboard: React.FC = () => {
           notifications={stats.pendingRequests}
           onClick={() => navigate('/requests')}
         />
+
+        {/* ── Total Reports: admin only can click ── */}
         <StatCard
           type="reports"
           value={stats.totalReports.toLocaleString()}
           label="Total Reports"
           color="gray"
           notifications={stats.openReports}
-          onClick={() => navigate('/reports')}
+          onClick={isAdmin ? () => navigate('/reports') : undefined}
         />
       </div>
 
       <div className="chart-cards">
-        <ChartCard 
-          type="bar" 
-          title="Weekly Requests" 
-          data={stats.weeklyRequests} 
-          dropdown="Last 7 Days" 
+        <ChartCard
+          type="bar"
+          title="Weekly Requests"
+          data={stats.weeklyRequests}
+          dropdown="Last 7 Days"
         />
-        <ChartCard 
-          type="line" 
-          title="Monthly Overview" 
-          data={stats.monthlyData} 
-          dropdown="Last 6 Months" 
+        <ChartCard
+          type="line"
+          title="Monthly Overview"
+          data={stats.monthlyData}
+          dropdown="Last 6 Months"
         />
       </div>
 
@@ -198,7 +218,7 @@ const Dashboard: React.FC = () => {
                 {stats.topRooms.map((room, index) => {
                   const maxCount = stats.topRooms[0]?.count || 1;
                   const percentage = Math.round((room.count / maxCount) * 100);
-                  
+
                   return (
                     <tr key={index}>
                       <td style={{ fontWeight: 'bold', color: 'var(--soft-blue-dark)' }}>
@@ -211,16 +231,16 @@ const Dashboard: React.FC = () => {
                       <td style={{ fontWeight: 'bold' }}>{room.count}</td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div style={{ 
-                            flex: 1, 
-                            height: '8px', 
-                            background: '#f0f0f0', 
+                          <div style={{
+                            flex: 1,
+                            height: '8px',
+                            background: '#f0f0f0',
                             borderRadius: '4px',
                             overflow: 'hidden'
                           }}>
-                            <div style={{ 
-                              width: `${percentage}%`, 
-                              height: '100%', 
+                            <div style={{
+                              width: `${percentage}%`,
+                              height: '100%',
                               background: 'var(--soft-blue-dark)',
                               transition: 'width 0.3s ease'
                             }} />
@@ -253,7 +273,7 @@ const Dashboard: React.FC = () => {
               </div>
               <Icons.CheckCircle size={48} color="#10b981" />
             </div>
-            
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: '14px', color: 'var(--muted-text)', marginBottom: '4px' }}>
@@ -266,10 +286,10 @@ const Dashboard: React.FC = () => {
               <Icons.Lock size={48} color="#f59e0b" />
             </div>
 
-            <div style={{ 
-              marginTop: '8px', 
-              padding: '12px', 
-              background: '#f8fafc', 
+            <div style={{
+              marginTop: '8px',
+              padding: '12px',
+              background: '#f8fafc',
               borderRadius: '8px',
               display: 'flex',
               justifyContent: 'space-between',
@@ -277,8 +297,8 @@ const Dashboard: React.FC = () => {
             }}>
               <span style={{ fontSize: '14px', fontWeight: 500 }}>Availability Rate</span>
               <span style={{ fontSize: '18px', fontWeight: 'bold', color: 'var(--soft-blue-dark)' }}>
-                {stats.totalRooms > 0 
-                  ? Math.round((stats.availableRooms / stats.totalRooms) * 100) 
+                {stats.totalRooms > 0
+                  ? Math.round((stats.availableRooms / stats.totalRooms) * 100)
                   : 0}%
               </span>
             </div>

@@ -5,7 +5,6 @@ import { roomsAPI } from '../lib/api';
 import { Lock, Globe, MapPin, X, ImagePlus } from 'lucide-react';
 
 // ── Point to your backend server so /uploads/* images load correctly ────────
-// Change this if your backend runs on a different port or host
 const BACKEND = 'http://localhost:5000';
 
 interface Room {
@@ -15,7 +14,7 @@ interface Room {
   status: 'available' | 'occupied' | 'requested' | 'maintenance';
   floorLabel?: 'basement' | 'ground' | 'first' | 'second';
   direction?: string;
-  directionImage?: string;   // stored as  /uploads/rooms/filename.jpg
+  directionImage?: string;
   coordinator?: string;
   capacity?: number | null;
   equipment?: string[];
@@ -30,7 +29,7 @@ const EQUIPMENT_OPTIONS = [
 
 const CAPACITY_OPTIONS: number[] = [
   ...Array.from({ length: 10 }, (_, i) => i + 1),
-  ...Array.from({ length: 14 }, (_, i) => (i + 1) * 10 + 10), // 20,30,...150
+  ...Array.from({ length: 14 }, (_, i) => (i + 1) * 10 + 10),
 ];
 
 /** Turn a server path like /uploads/rooms/x.jpg into a full URL */
@@ -45,6 +44,19 @@ const Rooms: React.FC = () => {
   const [isEditing, setIsEditing]         = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
+  // ── Read user role from localStorage ───────────────────────────────────
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('currentUser');
+      if (stored) {
+        const u = JSON.parse(stored);
+        setIsAdmin(u.role === 'admin');
+      }
+    } catch {}
+  }, []);
+
   // Form text fields
   const [newName,        setNewName]        = useState('');
   const [newCode,        setNewCode]        = useState('');
@@ -57,11 +69,10 @@ const Rooms: React.FC = () => {
   const [newIsPrivate,   setNewIsPrivate]   = useState(false);
 
   // Image state
-  const [existingImagePath, setExistingImagePath] = useState('');   // path from server
+  const [existingImagePath, setExistingImagePath] = useState('');
   const [imageFile,         setImageFile]         = useState<File | null>(null);
-  const [imagePreview,      setImagePreview]       = useState('');   // local object URL
+  const [imagePreview,      setImagePreview]       = useState('');
 
-  // We put the file input OUTSIDE the modal so z-index / propagation can't block it
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadRooms(); }, []);
@@ -100,35 +111,32 @@ const Rooms: React.FC = () => {
     setImagePreview('');
   };
 
-  const handleAddRoom  = ()         => { setEditingRoom(null); resetForm();         setIsEditing(true);  setIsModalOpen(true); };
-  const handleViewRoom = (r: Room)  => { setEditingRoom(r);    populateForm(r);     setIsEditing(false); setIsModalOpen(true); };
-  const handleEditRoom = (r: Room)  => { setEditingRoom(r);    populateForm(r);     setIsEditing(true);  setIsModalOpen(true); };
-  const closeModal     = ()         => { setIsModalOpen(false); setIsEditing(false); setEditingRoom(null); };
+  // ── Admin-only actions ─────────────────────────────────────────────────
+  const handleAddRoom  = ()        => { setEditingRoom(null); resetForm();     setIsEditing(true);  setIsModalOpen(true); };
+  const handleViewRoom = (r: Room) => { setEditingRoom(r);   populateForm(r); setIsEditing(false); setIsModalOpen(true); };
+  const handleEditRoom = (r: Room) => { setEditingRoom(r);   populateForm(r); setIsEditing(true);  setIsModalOpen(true); };
+  const closeModal     = ()        => { setIsModalOpen(false); setIsEditing(false); setEditingRoom(null); };
 
   const toggleEquipment = (tag: string) =>
     setNewEquipment(prev => prev.includes(tag) ? prev.filter(e => e !== tag) : [...prev, tag]);
 
-  // ── File picker ────────────────────────────────────────────────────────────
+  // ── File picker ────────────────────────────────────────────────────────
   const openFilePicker = () => fileInputRef.current?.click();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Validate type
     if (!file.type.startsWith('image/')) {
       alert('Please select an image file (JPG, PNG, GIF, WEBP).');
       return;
     }
-    // Validate size (10 MB)
     if (file.size > 10 * 1024 * 1024) {
       alert('Image must be smaller than 10 MB.');
       return;
     }
     setImageFile(file);
-    // Revoke previous preview
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     setImagePreview(URL.createObjectURL(file));
-    // Reset the input so the same file can be re-selected if needed
     e.target.value = '';
   };
 
@@ -139,7 +147,7 @@ const Rooms: React.FC = () => {
     setExistingImagePath('');
   };
 
-  // ── Save ───────────────────────────────────────────────────────────────────
+  // ── Save ───────────────────────────────────────────────────────────────
   const handleSaveRoom = async () => {
     if (!newName.trim() || !newCode.trim()) { alert('Name and code are required'); return; }
     try {
@@ -200,55 +208,87 @@ const Rooms: React.FC = () => {
     );
   };
 
-  // The src to show in the modal image preview
   const previewSrc = imagePreview || toFullUrl(existingImagePath);
 
   if (loading) return <div style={{ padding: '2rem' }}>Loading rooms...</div>;
 
   return (
     <>
-      {/* ── File input lives at page root — never blocked by modal events ── */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-        style={{ display: 'none', position: 'fixed', top: -9999, left: -9999 }}
-        onChange={handleFileChange}
-      />
+      {/* File input — lives at page root, admin only uses it */}
+      {isAdmin && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+          style={{ display: 'none', position: 'fixed', top: -9999, left: -9999 }}
+          onChange={handleFileChange}
+        />
+      )}
 
+      {/* ════════════════════════════════════════════════════════════════
+          PAGE HEADER
+          Admin sees: title + Add Room button
+          User  sees: title only
+      ════════════════════════════════════════════════════════════════ */}
       <div className="rooms-header">
         <h1 className="section-title">Rooms</h1>
-        <button className="add-room-btn" onClick={handleAddRoom}>
-          <Icons.Plus size={18} /> Add Room
-        </button>
+        {isAdmin && (
+          <button className="add-room-btn" onClick={handleAddRoom}>
+            <Icons.Plus size={18} /> Add Room
+          </button>
+        )}
       </div>
 
-      {/* ── Room cards — status + name + code ONLY ── */}
+      {/* ════════════════════════════════════════════════════════════════
+          ROOM CARDS
+          Admin: clickable card → opens detail modal + Edit / Delete buttons
+          User:  static card (no click, no action buttons)
+      ════════════════════════════════════════════════════════════════ */}
       <div className="rooms-grid">
         {rooms.map(room => (
           <div
             key={room._id}
             className="room-card"
-            role="button"
-            onClick={() => handleViewRoom(room)}
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleViewRoom(room); }}
+            // Only admins can click a card to open the detail modal
+            role={isAdmin ? 'button' : undefined}
+            onClick={isAdmin ? () => handleViewRoom(room) : undefined}
+            tabIndex={isAdmin ? 0 : undefined}
+            onKeyDown={isAdmin ? (e) => { if (e.key === 'Enter') handleViewRoom(room); } : undefined}
+            style={{ cursor: isAdmin ? 'pointer' : 'default' }}
           >
             <div style={{ width: '100%', textAlign: 'center' }}>
               <div style={{ marginBottom: '0.5rem' }}>{getStatusBadge(room.status)}</div>
               <h3 className="room-name" style={{ margin: '0.4rem 0 0.2rem 0' }}>{room.name}</h3>
               <p className="room-code"  style={{ margin: 0 }}>{room.code}</p>
             </div>
-            <div className="room-actions" onClick={(e) => e.stopPropagation()}>
-              <button className="action-btn edit"   onClick={() => handleEditRoom(room)}              aria-label={`Edit ${room.name}`}><Icons.Edit  size={16} /></button>
-              <button className="action-btn delete" onClick={() => handleDeleteRoom(room._id, room.name)} aria-label={`Delete ${room.name}`}><Icons.Trash size={16} /></button>
-            </div>
+
+            {/* Edit / Delete buttons — admin only */}
+            {isAdmin && (
+              <div className="room-actions" onClick={(e) => e.stopPropagation()}>
+                <button
+                  className="action-btn edit"
+                  onClick={() => handleEditRoom(room)}
+                  aria-label={`Edit ${room.name}`}
+                >
+                  <Icons.Edit size={16} />
+                </button>
+                <button
+                  className="action-btn delete"
+                  onClick={() => handleDeleteRoom(room._id, room.name)}
+                  aria-label={`Delete ${room.name}`}
+                >
+                  <Icons.Trash size={16} />
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>
 
-      {/* ── Modal ── */}
-      {isModalOpen && (
+      {/* ════════════════════════════════════════════════════════════════
+          MODAL — admin only (view / edit / add)
+      ════════════════════════════════════════════════════════════════ */}
+      {isAdmin && isModalOpen && (
         <div className="modal-overlay" onClick={closeModal}>
           <div
             className="modal"
@@ -297,7 +337,7 @@ const Rooms: React.FC = () => {
                 readOnly={!isEditing} />
             </label>
 
-            {/* ── Direction Route Image ── */}
+            {/* Direction Route Image */}
             <div style={{ marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
                 <MapPin size={14} color="var(--soft-blue)" />
@@ -309,7 +349,6 @@ const Rooms: React.FC = () => {
                 Upload a photo or map of the route to this room. Users see a "View Direction" button that reveals it.
               </p>
 
-              {/* ── Preview when image exists ── */}
               {previewSrc ? (
                 <div style={{ position: 'relative' }}>
                   <img
@@ -323,7 +362,6 @@ const Rooms: React.FC = () => {
                   />
                   {isEditing && (
                     <>
-                      {/* Remove button */}
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); removeImage(); }}
@@ -332,25 +370,19 @@ const Rooms: React.FC = () => {
                           width: 28, height: 28, borderRadius: '50%',
                           background: '#ef4444', border: 'none', color: '#fff',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-                          zIndex: 10,
+                          cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.3)', zIndex: 10,
                         }}
                       >
                         <X size={14} />
                       </button>
-                      {/* Change image button */}
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); openFilePicker(); }}
                         style={{
-                          marginTop: 8,
-                          padding: '6px 14px', borderRadius: '8px',
-                          border: '1px solid var(--glass-border)',
-                          background: 'var(--gray-light)',
-                          color: 'var(--soft-blue-dark)',
-                          fontSize: '13px', fontWeight: 500,
-                          cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', gap: '6px',
+                          marginTop: 8, padding: '6px 14px', borderRadius: '8px',
+                          border: '1px solid var(--glass-border)', background: 'var(--gray-light)',
+                          color: 'var(--soft-blue-dark)', fontSize: '13px', fontWeight: 500,
+                          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
                         }}
                       >
                         <ImagePlus size={14} /> Change Image
@@ -359,18 +391,13 @@ const Rooms: React.FC = () => {
                   )}
                 </div>
               ) : (
-                /* ── Upload zone when no image ── */
                 isEditing ? (
                   <div
                     onClick={(e) => { e.stopPropagation(); openFilePicker(); }}
                     style={{
-                      border: '2px dashed var(--glass-border)',
-                      borderRadius: '10px',
-                      padding: '32px 20px',
-                      textAlign: 'center',
-                      cursor: 'pointer',
-                      background: 'var(--gray-light)',
-                      transition: 'all 0.2s',
+                      border: '2px dashed var(--glass-border)', borderRadius: '10px',
+                      padding: '32px 20px', textAlign: 'center', cursor: 'pointer',
+                      background: 'var(--gray-light)', transition: 'all 0.2s',
                     }}
                     onMouseEnter={e => {
                       e.currentTarget.style.borderColor = 'var(--soft-blue)';

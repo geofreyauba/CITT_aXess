@@ -1,4 +1,9 @@
 // src/lib/api.ts
+/// <reference types="vite/client" />
+
+// ── Base URL ──────────────────────────────────────────────────────────────────
+// Always use /api as a relative path — Vite proxies it to the backend.
+// Do NOT set VITE_API_URL in your .env for local dev; remove it if it exists.
 const API_BASE = '/api';
 
 const getToken = (): string | null => {
@@ -12,7 +17,13 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (options.headers) Object.assign(headers, options.headers);
 
-  const response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers, credentials: 'include' });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers, credentials: 'include' });
+  } catch {
+    throw new Error('Cannot reach the server. Make sure the backend is running on port 5000.');
+  }
+
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.msg || errorData.message || `HTTP ${response.status}`);
@@ -20,88 +31,68 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
   return response.json();
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// AUTH
-// ═══════════════════════════════════════════════════════════════════════════
 export const authAPI = {
   async login(email: string, password: string) {
-    return fetchAPI('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
+    return fetchAPI('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
   },
 
-  // Check account status by email only (no password needed).
-  // Used by Login page step 1 to prevent users from resetting their
-  // password when they are simply pending approval.
   async checkStatus(email: string) {
-    const response = await fetch(`${API_BASE}/auth/check-status`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-    return response.json(); // Always returns {status, fullName?}
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE}/auth/check-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+    } catch {
+      throw new Error('Cannot reach the server. Make sure the backend is running.');
+    }
+    return response.json();
   },
 
   async register(formData: FormData) {
     const token = getToken();
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-    const response = await fetch(`${API_BASE}/auth/register`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE}/auth/register`, {
+        method: 'POST',
+        headers,
+        body: formData,
+        credentials: 'include',
+      });
+    } catch {
+      throw new Error('Cannot reach the server. Make sure the backend is running on port 5000.');
+    }
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.msg || 'Registration failed');
+      throw new Error(errorData.msg || errorData.message || `Registration failed (HTTP ${response.status})`);
     }
     return response.json();
   },
 
-  // Admin resets any user's password without knowing the old one
   async adminResetPassword(userId: string, newPassword: string) {
-    return fetchAPI('/auth/admin-reset-password', {
-      method: 'POST',
-      body: JSON.stringify({ userId, newPassword }),
-    });
+    return fetchAPI('/auth/admin-reset-password', { method: 'POST', body: JSON.stringify({ userId, newPassword }) });
   },
 
-  // Admin logs into a user's account. Returns token + adminToken
   async impersonate(userId: string) {
-    return fetchAPI('/auth/impersonate', {
-      method: 'POST',
-      body: JSON.stringify({ userId }),
-    });
+    return fetchAPI('/auth/impersonate', { method: 'POST', body: JSON.stringify({ userId }) });
   },
 
-  // ── WebAuthn: Registration ──────────────────────────────────────────────
   async webauthnRegisterStart(email: string) {
-    return fetchAPI('/auth/webauthn/register/start', {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-    });
+    return fetchAPI('/auth/webauthn/register/start', { method: 'POST', body: JSON.stringify({ email }) });
   },
 
   async webauthnRegisterFinish(email: string, credential: any) {
-    return fetchAPI('/auth/webauthn/register/finish', {
-      method: 'POST',
-      body: JSON.stringify({ email, credential }),
-    });
+    return fetchAPI('/auth/webauthn/register/finish', { method: 'POST', body: JSON.stringify({ email, credential }) });
   },
 
-  // ── WebAuthn: Authentication ────────────────────────────────────────────
   async webauthnAuthStart(email: string) {
-    return fetchAPI('/auth/webauthn/authenticate/start', {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-    });
+    return fetchAPI('/auth/webauthn/authenticate/start', { method: 'POST', body: JSON.stringify({ email }) });
   },
 
   async webauthnAuthFinish(userId: string, credential: any) {
-    return fetchAPI('/auth/webauthn/authenticate/finish', {
-      method: 'POST',
-      body: JSON.stringify({ userId, credential }),
-    });
+    return fetchAPI('/auth/webauthn/authenticate/finish', { method: 'POST', body: JSON.stringify({ userId, credential }) });
   },
 
   async checkFingerprint() {
@@ -109,51 +100,26 @@ export const authAPI = {
   },
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
-// DASHBOARD
-// ═══════════════════════════════════════════════════════════════════════════
 export const dashboardAPI = {
-  async getStats() {
-    return fetchAPI('/dashboard/stats');
-  },
+  async getStats() { return fetchAPI('/dashboard/stats'); },
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
-// MEMBERS
-// ═══════════════════════════════════════════════════════════════════════════
 export const membersAPI = {
-  async getAll() {
-    return fetchAPI('/members');
-  },
-  async approve(id: string) {
-    return fetchAPI(`/members/${id}/approve`, { method: 'PATCH' });
-  },
-  async reject(id: string) {
-    return fetchAPI(`/members/${id}/reject`, { method: 'PATCH' });
-  },
-  async delete(id: string) {
-    return fetchAPI(`/members/${id}`, { method: 'DELETE' });
-  },
+  async getAll() { return fetchAPI('/members'); },
+  async approve(id: string) { return fetchAPI(`/members/${id}/approve`, { method: 'PATCH' }); },
+  async reject(id: string) { return fetchAPI(`/members/${id}/reject`, { method: 'PATCH' }); },
+  async delete(id: string) { return fetchAPI(`/members/${id}`, { method: 'DELETE' }); },
   async update(id: string, data: any) {
-    return fetchAPI(`/members/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
+    return fetchAPI(`/members/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   },
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ROOMS
-// ═══════════════════════════════════════════════════════════════════════════
 function buildRoomFormData(roomData: Record<string, any>, imageFile?: File | null): FormData {
   const fd = new FormData();
   for (const [key, val] of Object.entries(roomData)) {
     if (val === undefined || val === null) continue;
-    if (Array.isArray(val)) {
-      fd.append(key, JSON.stringify(val));
-    } else {
-      fd.append(key, String(val));
-    }
+    if (Array.isArray(val)) fd.append(key, JSON.stringify(val));
+    else fd.append(key, String(val));
   }
   if (imageFile) fd.append('directionImage', imageFile);
   return fd;
@@ -163,12 +129,12 @@ async function fetchFormData(endpoint: string, method: 'POST' | 'PUT', formData:
   const token = getToken();
   const headers: Record<string, string> = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    method,
-    headers,
-    body: formData,
-    credentials: 'include',
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, { method, headers, body: formData, credentials: 'include' });
+  } catch {
+    throw new Error('Cannot reach the server. Make sure the backend is running.');
+  }
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.msg || errorData.message || `HTTP ${response.status}`);
@@ -177,62 +143,32 @@ async function fetchFormData(endpoint: string, method: 'POST' | 'PUT', formData:
 }
 
 export const roomsAPI = {
-  async getAll() {
-    return fetchAPI('/rooms');
-  },
+  async getAll() { return fetchAPI('/rooms'); },
   async create(roomData: Record<string, any>, imageFile?: File | null) {
     return fetchFormData('/rooms', 'POST', buildRoomFormData(roomData, imageFile));
   },
   async update(id: string, roomData: Record<string, any>, imageFile?: File | null) {
     return fetchFormData(`/rooms/${id}`, 'PUT', buildRoomFormData(roomData, imageFile));
   },
-  async delete(id: string) {
-    return fetchAPI(`/rooms/${id}`, { method: 'DELETE' });
-  },
+  async delete(id: string) { return fetchAPI(`/rooms/${id}`, { method: 'DELETE' }); },
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
-// REQUESTS
-// ═══════════════════════════════════════════════════════════════════════════
 export const requestsAPI = {
-  async getAll() {
-    return fetchAPI('/requests');
-  },
-  async getAllRequests() {
-    return fetchAPI('/requests/all');
-  },
-  async getPendingReturns() {
-    return fetchAPI('/requests/pending-returns');
-  },
+  async getAll() { return fetchAPI('/requests'); },
+  async getAllRequests() { return fetchAPI('/requests/all'); },
+  async getPendingReturns() { return fetchAPI('/requests/pending-returns'); },
   async create(requestData: any) {
-    return fetchAPI('/requests', {
-      method: 'POST',
-      body: JSON.stringify(requestData),
-    });
+    return fetchAPI('/requests', { method: 'POST', body: JSON.stringify(requestData) });
   },
-  async returnRequest(id: string) {
-    return fetchAPI(`/requests/${id}/return`, { method: 'PATCH' });
-  },
-  async approveReturn(id: string) {
-    return fetchAPI(`/requests/${id}/approve-return`, { method: 'PATCH' });
-  },
-  async rejectReturn(id: string) {
-    return fetchAPI(`/requests/${id}/reject-return`, { method: 'PATCH' });
-  },
+  async returnRequest(id: string) { return fetchAPI(`/requests/${id}/return`, { method: 'PATCH' }); },
+  async approveReturn(id: string) { return fetchAPI(`/requests/${id}/approve-return`, { method: 'PATCH' }); },
+  async rejectReturn(id: string) { return fetchAPI(`/requests/${id}/reject-return`, { method: 'PATCH' }); },
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
-// REPORTS
-// ═══════════════════════════════════════════════════════════════════════════
 export const reportsAPI = {
-  async getAll() {
-    return fetchAPI('/reports');
-  },
+  async getAll() { return fetchAPI('/reports'); },
   async create(reportData: { title: string; roomCode: string; description?: string; priority?: string }) {
-    return fetchAPI('/reports', {
-      method: 'POST',
-      body: JSON.stringify(reportData),
-    });
+    return fetchAPI('/reports', { method: 'POST', body: JSON.stringify(reportData) });
   },
 };
 

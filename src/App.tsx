@@ -1,3 +1,4 @@
+// src/App.tsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
@@ -6,7 +7,7 @@ import './App.css';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ResetPassword from './pages/ResetPassword';
-import Splash from './pages/Splash';                     // ← ADD THIS
+import Splash from './pages/Splash';
 
 // Protected pages + layout
 import DashboardLayout from './components/layout/DashboardLayout';
@@ -17,89 +18,120 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import HelpSupport from './pages/HelpSupport';
 import Members from './pages/Members';
+import PendingReturns from './pages/PendingReturns'; // ← was missing entirely
 
 // Guard
 import ProtectedRoute from './components/ProtectedRoute';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WHY role prop is removed from every DashboardLayout:
+//   Previously every route had role="Admin" hardcoded, so Header + Sidebar
+//   always showed "Admin" even for Innovators and regular users.
+//   DashboardLayout now reads the real role from localStorage itself,
+//   so no prop is needed and the correct role is always displayed.
+// ─────────────────────────────────────────────────────────────────────────────
 
 const App: React.FC = () => {
   return (
     <Router>
       <Routes>
-        {/* Splash screen — shown only on exact "/" before any auth check */}
-        <Route path="/" element={<Splash />} />          {/* ← ADD THIS */}
 
-        {/* Public routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        {/* Splash screen — first screen before auth check */}
+        <Route path="/" element={<Splash />} />
+
+        {/* ── Public routes ─────────────────────────────────────────── */}
+        <Route path="/login"          element={<Login />} />
+        <Route path="/register"       element={<Register />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* Protected routes with role control */}
+        {/* ── Protected routes (require valid auth token) ───────────── */}
         <Route element={<ProtectedRoute />}>
-          {/* Admin only */}
+
+          {/* Dashboard — all authenticated users */}
           <Route
             path="/dashboard"
             element={
-              <DashboardLayout role="Admin">
+              <DashboardLayout>
                 <Dashboard />
               </DashboardLayout>
             }
           />
+
+          {/* Members — admin only (ProtectedRoute + page-level guard) */}
           <Route
             path="/members"
             element={
-              <DashboardLayout role="Admin">
+              <DashboardLayout>
                 <Members />
               </DashboardLayout>
             }
           />
 
-          {/* User + Admin */}
+          {/* Rooms — admin only (sidebar hides it from users) */}
           <Route
             path="/rooms"
             element={
-              <DashboardLayout role="Admin">
+              <DashboardLayout>
                 <Rooms />
               </DashboardLayout>
             }
           />
+
+          {/* Requests — all authenticated users */}
           <Route
             path="/requests"
             element={
-              <DashboardLayout role="Admin">
+              <DashboardLayout>
                 <Requests />
               </DashboardLayout>
             }
           />
+
+          {/* Reports — admin only */}
           <Route
             path="/reports"
             element={
-              <DashboardLayout role="Admin">
+              <DashboardLayout>
                 <Reports />
               </DashboardLayout>
             }
           />
 
-          {/* Common */}
+          {/* ── PENDING RETURNS — was missing, causing redirect to /login ── */}
+          <Route
+            path="/pending-returns"
+            element={
+              <DashboardLayout>
+                <PendingReturns />
+              </DashboardLayout>
+            }
+          />
+
+          {/* Settings — all authenticated users */}
           <Route
             path="/settings"
             element={
-              <DashboardLayout role="Admin">
+              <DashboardLayout>
                 <Settings />
               </DashboardLayout>
             }
           />
+
+          {/* Help & Support — all authenticated users */}
           <Route
             path="/help"
             element={
-              <DashboardLayout role="Admin">
+              <DashboardLayout>
                 <HelpSupport />
               </DashboardLayout>
             }
           />
+
         </Route>
 
-        {/* Fallback */}
+        {/* Fallback — unknown paths go to login */}
         <Route path="*" element={<Navigate to="/login" replace />} />
+
       </Routes>
     </Router>
   );

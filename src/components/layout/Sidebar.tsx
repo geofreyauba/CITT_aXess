@@ -1,5 +1,28 @@
 // src/components/layout/Sidebar.tsx
-import React, { useState } from 'react';
+// ═══════════════════════════════════════════════════════════════════════════
+// ROLE-BASED NAVIGATION SIDEBAR
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// NORMAL USERS (role !== 'admin') ONLY SEE:
+// - Dashboard
+// - Requests
+// - Settings
+// - Help & Support
+// - Logout
+//
+// ADMINS (role === 'admin') SEE EVERYTHING:
+// - Dashboard
+// - Members   (ADMIN ONLY)
+// - Rooms     (ADMIN ONLY)
+// - Requests
+// - Reports          (ADMIN ONLY)
+// - Pending Returns   (ADMIN ONLY)
+// - Settings
+// - Help & Support
+// - Logout
+// ═══════════════════════════════════════════════════════════════════════════
+
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Icons } from '../icons';
 import { performLogout } from '../../lib/auth';
@@ -11,6 +34,34 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin' }) => {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userRole, setUserRole] = useState<string>('user');
+
+  // ═══════════════════════════════════════════════════════════════════
+  // READ USER ROLE FROM LOCALSTORAGE ON MOUNT
+  // ═══════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem('currentUser');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        const role = user.role || 'user';
+        setUserRole(role);
+        setIsAdmin(role === 'admin');
+
+        console.log('[SIDEBAR] User role detected:', role);
+        console.log('[SIDEBAR] Is admin:', role === 'admin');
+      } else {
+        console.warn('[SIDEBAR] No currentUser in localStorage');
+        setIsAdmin(false);
+        setUserRole('user');
+      }
+    } catch (err) {
+      console.error('[SIDEBAR] Failed to parse user:', err);
+      setIsAdmin(false);
+      setUserRole('user');
+    }
+  }, []);
 
   const handleLogout = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -37,42 +88,81 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin' }) => {
       {/* Navigation */}
       <nav className="sidebar-nav">
         <ul>
+          {/* ════════════════════════════════════════════════════
+              VISIBLE TO ALL USERS
+          ════════════════════════════════════════════════════ */}
+
           <li>
             <NavLink to="/dashboard" title="Dashboard">
               <Icons.Home className="sidebar-icon" />
               <span className="sidebar-label">Dashboard</span>
             </NavLink>
           </li>
-          <li>
-            <NavLink to="/members" title="Members">
-              <Icons.Users className="sidebar-icon" />
-              <span className="sidebar-label">Members</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/rooms" title="Rooms">
-              <Icons.Key className="sidebar-icon" />
-              <span className="sidebar-label">Rooms</span>
-            </NavLink>
-          </li>
+
+          {/* ════════════════════════════════════════════════════
+              ADMIN-ONLY LINKS: Members + Rooms
+          ════════════════════════════════════════════════════ */}
+          {isAdmin && (
+            <>
+              <li>
+                <NavLink to="/members" title="Members (Admin Only)">
+                  <Icons.Users className="sidebar-icon" />
+                  <span className="sidebar-label">Members</span>
+                </NavLink>
+              </li>
+
+              <li>
+                <NavLink to="/rooms" title="Rooms (Admin Only)">
+                  <Icons.Key className="sidebar-icon" />
+                  <span className="sidebar-label">Rooms</span>
+                </NavLink>
+              </li>
+            </>
+          )}
+
+          {/* ════════════════════════════════════════════════════
+              VISIBLE TO ALL USERS
+          ════════════════════════════════════════════════════ */}
+
           <li>
             <NavLink to="/requests" title="Requests">
               <Icons.FileText className="sidebar-icon" />
               <span className="sidebar-label">Requests</span>
             </NavLink>
           </li>
-          <li>
-            <NavLink to="/reports" title="Reports">
-              <Icons.BarChart className="sidebar-icon" />
-              <span className="sidebar-label">Reports</span>
-            </NavLink>
-          </li>
+
+          {/* ════════════════════════════════════════════════════
+              ADMIN-ONLY LINKS: Reports & Pending Returns
+          ════════════════════════════════════════════════════ */}
+          {isAdmin && (
+            <>
+              <li>
+                <NavLink to="/reports" title="Reports (Admin Only)">
+                  <Icons.BarChart className="sidebar-icon" />
+                  <span className="sidebar-label">Reports</span>
+                </NavLink>
+              </li>
+
+              <li>
+                <NavLink to="/pending-returns" title="Pending Returns (Admin Only)">
+                  <Icons.Clock className="sidebar-icon" />
+                  <span className="sidebar-label">Pending Returns</span>
+                </NavLink>
+              </li>
+            </>
+          )}
+
+          {/* ════════════════════════════════════════════════════
+              VISIBLE TO ALL USERS (continued)
+          ════════════════════════════════════════════════════ */}
+
           <li>
             <NavLink to="/settings" title="Settings">
               <Icons.Settings className="sidebar-icon" />
               <span className="sidebar-label">Settings</span>
             </NavLink>
           </li>
+
           <li>
             <NavLink to="/help" title="Help & Support">
               <Icons.HelpCircle className="sidebar-icon" />
