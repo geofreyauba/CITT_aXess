@@ -1,27 +1,4 @@
 // src/components/layout/Sidebar.tsx
-// ═══════════════════════════════════════════════════════════════════════════
-// ROLE-BASED NAVIGATION SIDEBAR
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// NORMAL USERS (role !== 'admin') ONLY SEE:
-// - Dashboard
-// - Requests
-// - Settings
-// - Help & Support
-// - Logout
-//
-// ADMINS (role === 'admin') SEE EVERYTHING:
-// - Dashboard
-// - Members   (ADMIN ONLY)
-// - Rooms     (ADMIN ONLY)
-// - Requests
-// - Reports          (ADMIN ONLY)
-// - Pending Returns   (ADMIN ONLY)
-// - Settings
-// - Help & Support
-// - Logout
-// ═══════════════════════════════════════════════════════════════════════════
-
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Icons } from '../icons';
@@ -29,44 +6,33 @@ import { performLogout } from '../../lib/auth';
 
 interface SidebarProps {
   role?: string;
+  isOpen?: boolean;       // mobile: controlled open state
+  onClose?: () => void;   // mobile: close callback
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin' }) => {
+const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin', isOpen = false, onClose }) => {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [userRole, setUserRole] = useState<string>('user');
 
-  // ═══════════════════════════════════════════════════════════════════
-  // READ USER ROLE FROM LOCALSTORAGE ON MOUNT
-  // ═══════════════════════════════════════════════════════════════════
   useEffect(() => {
     try {
       const userStr = localStorage.getItem('currentUser');
       if (userStr) {
         const user = JSON.parse(userStr);
-        const role = user.role || 'user';
-        setUserRole(role);
-        setIsAdmin(role === 'admin');
-
-        console.log('[SIDEBAR] User role detected:', role);
-        console.log('[SIDEBAR] Is admin:', role === 'admin');
+        const r = user.role || 'user';
+        setIsAdmin(r === 'admin');
       } else {
-        console.warn('[SIDEBAR] No currentUser in localStorage');
         setIsAdmin(false);
-        setUserRole('user');
       }
-    } catch (err) {
-      console.error('[SIDEBAR] Failed to parse user:', err);
+    } catch {
       setIsAdmin(false);
-      setUserRole('user');
     }
   }, []);
 
   const handleLogout = async (e: React.MouseEvent) => {
     e.preventDefault();
     if (!window.confirm('Are you sure you want to log out?')) return;
-
     try {
       await performLogout();
     } catch (err) {
@@ -77,8 +43,22 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin' }) => {
     }
   };
 
+  const handleNavClick = () => {
+    // Close mobile sidebar when a nav item is clicked
+    if (onClose) onClose();
+  };
+
   return (
-    <aside className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''}`}>
+    <aside className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''} ${isOpen ? 'sidebar-open' : ''}`}>
+
+      {/* Mobile close button */}
+      <button
+        className="sidebar-mobile-close"
+        onClick={onClose}
+        aria-label="Close menu"
+      >
+        <Icons.X size={20} />
+      </button>
 
       {/* Logo */}
       <div className="sidebar-logo">
@@ -88,31 +68,23 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin' }) => {
       {/* Navigation */}
       <nav className="sidebar-nav">
         <ul>
-          {/* ════════════════════════════════════════════════════
-              VISIBLE TO ALL USERS
-          ════════════════════════════════════════════════════ */}
-
           <li>
-            <NavLink to="/dashboard" title="Dashboard">
+            <NavLink to="/dashboard" title="Dashboard" onClick={handleNavClick}>
               <Icons.Home className="sidebar-icon" />
               <span className="sidebar-label">Dashboard</span>
             </NavLink>
           </li>
 
-          {/* ════════════════════════════════════════════════════
-              ADMIN-ONLY LINKS: Members + Rooms
-          ════════════════════════════════════════════════════ */}
           {isAdmin && (
             <>
               <li>
-                <NavLink to="/members" title="Members (Admin Only)">
+                <NavLink to="/members" title="Members" onClick={handleNavClick}>
                   <Icons.Users className="sidebar-icon" />
                   <span className="sidebar-label">Members</span>
                 </NavLink>
               </li>
-
               <li>
-                <NavLink to="/rooms" title="Rooms (Admin Only)">
+                <NavLink to="/rooms" title="Rooms" onClick={handleNavClick}>
                   <Icons.Key className="sidebar-icon" />
                   <span className="sidebar-label">Rooms</span>
                 </NavLink>
@@ -120,31 +92,23 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin' }) => {
             </>
           )}
 
-          {/* ════════════════════════════════════════════════════
-              VISIBLE TO ALL USERS
-          ════════════════════════════════════════════════════ */}
-
           <li>
-            <NavLink to="/requests" title="Requests">
+            <NavLink to="/requests" title="Requests" onClick={handleNavClick}>
               <Icons.FileText className="sidebar-icon" />
               <span className="sidebar-label">Requests</span>
             </NavLink>
           </li>
 
-          {/* ════════════════════════════════════════════════════
-              ADMIN-ONLY LINKS: Reports & Pending Returns
-          ════════════════════════════════════════════════════ */}
           {isAdmin && (
             <>
               <li>
-                <NavLink to="/reports" title="Reports (Admin Only)">
+                <NavLink to="/reports" title="Reports" onClick={handleNavClick}>
                   <Icons.BarChart className="sidebar-icon" />
                   <span className="sidebar-label">Reports</span>
                 </NavLink>
               </li>
-
               <li>
-                <NavLink to="/pending-returns" title="Pending Returns (Admin Only)">
+                <NavLink to="/pending-returns" title="Pending Returns" onClick={handleNavClick}>
                   <Icons.Clock className="sidebar-icon" />
                   <span className="sidebar-label">Pending Returns</span>
                 </NavLink>
@@ -152,19 +116,15 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin' }) => {
             </>
           )}
 
-          {/* ════════════════════════════════════════════════════
-              VISIBLE TO ALL USERS (continued)
-          ════════════════════════════════════════════════════ */}
-
           <li>
-            <NavLink to="/settings" title="Settings">
+            <NavLink to="/settings" title="Settings" onClick={handleNavClick}>
               <Icons.Settings className="sidebar-icon" />
               <span className="sidebar-label">Settings</span>
             </NavLink>
           </li>
 
           <li>
-            <NavLink to="/help" title="Help & Support">
+            <NavLink to="/help" title="Help & Support" onClick={handleNavClick}>
               <Icons.HelpCircle className="sidebar-icon" />
               <span className="sidebar-label">Help & Support</span>
             </NavLink>
@@ -174,17 +134,14 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin' }) => {
 
       {/* Bottom area */}
       <div className="sidebar-bottom">
-        <button
-          className="sidebar-logout"
-          onClick={handleLogout}
-          title="Logout"
-        >
+        <button className="sidebar-logout" onClick={handleLogout} title="Logout">
           <Icons.LogOut className="sidebar-icon" />
           <span className="sidebar-label">Logout</span>
         </button>
 
+        {/* Only show collapse toggle on desktop */}
         <button
-          className="sidebar-toggle"
+          className="sidebar-toggle sidebar-toggle-desktop"
           onClick={() => setCollapsed(!collapsed)}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
@@ -193,7 +150,6 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin' }) => {
           </span>
         </button>
       </div>
-
     </aside>
   );
 };

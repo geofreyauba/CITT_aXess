@@ -5,23 +5,14 @@ import Header from './Header';
 
 interface DashboardLayoutProps {
   children: ReactNode;
-  role?: string; // optional explicit override — almost never needed now
+  role?: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DashboardLayout reads the logged-in user's real role from localStorage.
-// The `role` prop is kept for backwards compatibility but is only used if
-// no user is found in localStorage (which should never happen in practice).
-//
-// This fixes the "Admin" badge showing for Innovators / Users:
-//   Before: every route passed role="Admin" → everyone saw "Admin"
-//   After:  role comes from localStorage → each user sees their real role
-// ─────────────────────────────────────────────────────────────────────────────
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, role: roleProp }) => {
   const [role, setRole] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    // Always read the real role from localStorage first
     try {
       const stored = localStorage.getItem('currentUser');
       if (stored) {
@@ -30,20 +21,38 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, role: roleP
         return;
       }
     } catch {}
-
-    // Fall back to the prop (or 'user') if localStorage is unavailable
     setRole(roleProp || 'user');
   }, [roleProp]);
 
-  // Hold rendering until the role is resolved — prevents a flash of the
-  // wrong badge colour / label on first load
+  // Close sidebar when clicking overlay
+  const handleOverlayClick = () => setSidebarOpen(false);
+
+  // Close sidebar on route change (resize to desktop)
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 768) setSidebarOpen(false);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   if (role === null) return null;
 
   return (
     <div className="app">
-      <Header role={role} />
+      <Header role={role} onMenuClick={() => setSidebarOpen(prev => !prev)} />
+
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div
+          className="sidebar-overlay visible"
+          onClick={handleOverlayClick}
+          aria-hidden="true"
+        />
+      )}
+
       <div className="main-layout">
-        <Sidebar role={role} />
+        <Sidebar role={role} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <main className="content">
           {children}
         </main>

@@ -808,8 +808,8 @@ const Requests: React.FC = () => {
               ) : (
                 history.slice((historyPage - 1) * HISTORY_PER_PAGE, historyPage * HISTORY_PER_PAGE).map(req => (
                   <tr key={req._id}>
-                    <td>{req.roomId?.name} ({req.roomId?.code || '—'})</td>
-                    <td>
+                    <td data-label="Room">{req.roomId?.name} ({req.roomId?.code || '—'})</td>
+                    <td data-label="Requester">
                       <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap', fontWeight:500 }}>
                         {req.userId?.fullName || 'Unknown'}
                         {req.isAdminRequest && req.requestedBy && (
@@ -820,19 +820,19 @@ const Requests: React.FC = () => {
                         )}
                       </div>
                     </td>
-                    <td>{maskPhone(req.userId?.phone, req.userId?._id || '')}</td>
-                    <td style={{ maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <td data-label="Phone">{maskPhone(req.userId?.phone, req.userId?._id || '')}</td>
+                    <td data-label="Items" style={{ maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {req.carriedItems || '—'}
                     </td>
-                    <td>{formatDateTime(req.requestedAt)}</td>
-                    <td>
+                    <td data-label="Requested">{formatDateTime(req.requestedAt)}</td>
+                    <td data-label="Status">
                       <Badge variant={getHistBadge(req.status)}>
                         {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
                       </Badge>
                     </td>
-                    <td>{computeDuration(req.requestedAt, req.returnedAt) || '—'}</td>
-                    <td>{formatDateTime(req.returnedAt) || '—'}</td>
-                    <td>
+                    <td data-label="Duration">{computeDuration(req.requestedAt, req.returnedAt) || '—'}</td>
+                    <td data-label="Returned">{formatDateTime(req.returnedAt) || '—'}</td>
+                    <td data-label="Action">
                       {/* BLUE: Fully signed out (returned and approved) */}
                       {req.status === 'returned' && req.returnApprovalStatus === 'approved' && (
                         <button

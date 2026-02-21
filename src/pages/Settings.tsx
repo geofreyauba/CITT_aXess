@@ -1,8 +1,10 @@
 // src/pages/Settings.tsx
 import React, { useState, useEffect } from 'react';
 import { Icons } from '../components/icons';
-import { Eye, EyeOff, Check, X, Shield, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Check, X, Shield, ShieldCheck, Fingerprint } from 'lucide-react';
 import TwoFactorSetup from '../components/TwoFactorSetup';
+import { authAPI } from '../lib/api';
+import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 const getToken = (): string | null => {
@@ -205,12 +207,157 @@ const Settings: React.FC = () => {
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [show2FAModal, setShow2FAModal]         = useState(false);
 
+  // ── FINGERPRINT ───────────────────────────────────────────────────────────
+  const [hasFingerprint, setHasFingerprint] = useState(false);
+  const [fingerprintLoading, setFingerprintLoading] = useState(false);
+  const [fingerprintMessage, setFingerprintMessage] = useState('');
+  const [webauthnSupported, setWebauthnSupported] = useState<boolean | null>(null);
+  const [showFpGuide, setShowFpGuide] = useState(false);
+
+  // Check WebAuthn browser support on mount
+  useEffect(() => {
+    const checkSupport = async () => {
+      try {
+        const supported = !!(
+          window.PublicKeyCredential &&
+          typeof window.PublicKeyCredential === 'function' &&
+          await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+        );
+        setWebauthnSupported(supported);
+      } catch {
+        setWebauthnSupported(false);
+      }
+    };
+    checkSupport();
+  }, []);
+
   useEffect(() => {
     try {
       const u = JSON.parse(localStorage.getItem('currentUser') || '{}');
       setTwoFactorEnabled(!!u.twoFactorEnabled);
+
+      // Check fingerprint status
+      authAPI.checkFingerprint().then(result => {
+        setHasFingerprint(result.hasFingerprint || false);
+      }).catch(err => {
+        console.error('Failed to check fingerprint:', err);
+        setHasFingerprint(false);
+      });
     } catch {}
   }, []);
+
+  // ── FINGERPRINT HANDLERS ──────────────────────────────────────────────────
+  const handleRegisterFingerprint = async () => {
+    try {
+      setFingerprintLoading(true);
+      setFingerprintMessage('');
+
+      const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const email = user.email;
+
+      if (!email) {
+        throw new Error('Email not found. Please log in again.');
+      }
+
+      // Step 1: Get registration options from server
+      // Server returns { options, userId } — options is the WebAuthn challenge object
+      const optionsResponse = await authAPI.webauthnRegisterStart(email);
+
+      if (!optionsResponse || !optionsResponse.options) {
+        throw new Error(
+          optionsResponse?.message ||
+          'Server did not return registration options. Make sure @simplewebauthn/server is installed on the backend.'
+        );
+      }
+
+      // Step 2: Prompt device for fingerprint scan
+      let credential;
+      try {
+        credential = await startRegistration(optionsResponse.options);
+      } catch (regError: any) {
+        if (regError.name === 'NotAllowedError') {
+          throw new Error('Fingerprint registration was cancelled or timed out. Please try again.');
+        }
+        if (regError.name === 'InvalidStateError') {
+          throw new Error('This device fingerprint is already registered for your account.');
+        }
+        throw new Error('Fingerprint registration failed: ' + regError.message);
+      }
+
+      // Step 3: Send credential to server for verification and storage
+      // Backend returns { success, message } (not { verified })
+      const verifyResponse = await authAPI.webauthnRegisterFinish(email, credential);
+
+      if (verifyResponse.success || verifyResponse.verified) {
+        setHasFingerprint(true);
+        setFingerprintMessage('✅ Fingerprint registered successfully! You can now use it for quick check-in.');
+      } else {
+        throw new Error(verifyResponse.message || 'Fingerprint registration could not be verified. Please try again.');
+      }
+    } catch (err: any) {
+      console.error('Fingerprint registration error:', err);
+      setFingerprintMessage('❌ ' + err.message);
+    } finally {
+      setFingerprintLoading(false);
+    }
+  };
+
+  const handleTestFingerprint = async () => {
+    try {
+      setFingerprintLoading(true);
+      setFingerprintMessage('');
+
+      const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const email = user.email;
+
+      if (!email) {
+        throw new Error('Email not found');
+      }
+
+      // Start authentication — server now returns { options, userId }
+      const optionsResponse = await authAPI.webauthnAuthStart(email);
+
+      if (!optionsResponse || !optionsResponse.options) {
+        // Server returned 404 or error — credential not found in DB
+        throw new Error(
+          optionsResponse?.message ||
+          'No fingerprint credential found on server. Please re-register your fingerprint.'
+        );
+      }
+
+      // Prompt device for fingerprint scan
+      let credential;
+      try {
+        credential = await startAuthentication(optionsResponse.options);
+      } catch (authError: any) {
+        if (authError.name === 'NotAllowedError') {
+          throw new Error('Fingerprint test was cancelled or timed out. Please try again.');
+        }
+        if (authError.name === 'NotFoundError') {
+          throw new Error(
+            'No matching fingerprint found on this device. ' +
+            'This can happen if you registered on a different device or browser. ' +
+            'Try clicking "Re-register Fingerprint" to register on this device.'
+          );
+        }
+        throw new Error('Fingerprint test failed: ' + authError.message);
+      }
+
+      // Verify fingerprint with server
+      const verifyResponse = await authAPI.webauthnAuthFinish(optionsResponse.userId, credential);
+
+      if (verifyResponse.verified || verifyResponse.success) {
+        setFingerprintMessage('✅ Fingerprint test successful! Your fingerprint is working correctly on this device.');
+      } else {
+        throw new Error(verifyResponse.message || 'Fingerprint not recognized by the server. Please re-register.');
+      }
+    } catch (err: any) {
+      console.error('Fingerprint test error:', err);
+      setFingerprintMessage('❌ ' + err.message);
+    } finally {
+      setFingerprintLoading(false);
+    }
+  };
 
   // ── requirement rows ──────────────────────────────────────────────────────
   const reqRows = [
@@ -383,6 +530,190 @@ const Settings: React.FC = () => {
                   Your account is protected with 2FA.
                 </p>
               )}
+
+              {/* ══════════════════════════════════════════════════════════════
+                  FINGERPRINT AUTHENTICATION SECTION
+              ══════════════════════════════════════════════════════════════ */}
+              <div style={{ 
+                marginTop: '24px', 
+                paddingTop: '24px', 
+                borderTop: '1px solid #e5e7eb' 
+              }}>
+                <h3 style={{ 
+                  fontSize: '16px', 
+                  fontWeight: 600, 
+                  marginBottom: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <Fingerprint size={18} />
+                  Fingerprint Authentication
+                </h3>
+                
+                {hasFingerprint ? (
+                  <>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      marginBottom: '6px', fontSize: '14px', color: '#059669', fontWeight: 600,
+                    }}>
+                      <Check size={16} />
+                      Fingerprint registered and active on server
+                    </div>
+                    <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '16px', lineHeight: 1.5 }}>
+                      If the test fails with "No matching fingerprint", your credential was saved from a
+                      different device or browser. Click <strong>Re-register on This Device</strong> to add this one.
+                    </p>
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={handleTestFingerprint}
+                        disabled={fingerprintLoading}
+                        className="primary-btn"
+                        style={{
+                          opacity: fingerprintLoading ? 0.6 : 1,
+                          cursor: fingerprintLoading ? 'not-allowed' : 'pointer',
+                          display: 'flex', alignItems: 'center', gap: '8px',
+                        }}
+                      >
+                        <Fingerprint size={16} />
+                        {fingerprintLoading ? 'Scanning…' : 'Test Fingerprint'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRegisterFingerprint}
+                        disabled={fingerprintLoading}
+                        className="secondary-btn"
+                        style={{
+                          opacity: fingerprintLoading ? 0.6 : 1,
+                          cursor: fingerprintLoading ? 'not-allowed' : 'pointer',
+                          display: 'flex', alignItems: 'center', gap: '6px',
+                        }}
+                      >
+                        <Fingerprint size={14} />
+                        Re-register on This Device
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Browser / device support warning */}
+                    {webauthnSupported === false && (
+                      <div style={{
+                        padding: '12px 16px', borderRadius: '10px', marginBottom: '16px',
+                        background: '#fef3c7', border: '1px solid #fcd34d',
+                        fontSize: '13px', color: '#92400e', lineHeight: 1.6,
+                      }}>
+                        <strong>⚠️ Device not supported</strong><br />
+                        Your browser or device does not support biometric authentication.
+                        Use <strong>Chrome or Edge on Windows 10/11</strong> (with Windows Hello set up),
+                        or <strong>Safari on macOS/iOS</strong> with Touch ID enabled.
+                      </div>
+                    )}
+
+                    <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px', lineHeight: 1.6 }}>
+                      Register your device fingerprint / face / PIN to enable <strong>1-tap check-in</strong> at the Reports page.
+                    </p>
+
+                    {/* Step-by-step guide toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setShowFpGuide(v => !v)}
+                      style={{
+                        background: 'none', border: 'none', padding: 0,
+                        color: '#6366f1', fontSize: '13px', fontWeight: 600,
+                        cursor: 'pointer', marginBottom: '14px',
+                        display: 'flex', alignItems: 'center', gap: '5px',
+                      }}
+                    >
+                      {showFpGuide ? '▾' : '▸'} How to register your fingerprint
+                    </button>
+
+                    {showFpGuide && (
+                      <div style={{
+                        background: '#f8fafc', borderRadius: '10px',
+                        padding: '14px 16px', marginBottom: '16px',
+                        border: '1px solid #e2e8f0', fontSize: '13px',
+                        color: '#374151', lineHeight: 1.7,
+                      }}>
+                        <div style={{ fontWeight: 700, marginBottom: '8px', color: '#1e293b' }}>
+                          📋 Before you click Register:
+                        </div>
+                        <ol style={{ margin: 0, paddingLeft: '18px' }}>
+                          <li style={{ marginBottom: '6px' }}>
+                            <strong>Windows Hello:</strong> Go to <em>Settings → Accounts → Sign-in options</em> and make sure <em>Fingerprint recognition</em> or <em>Face recognition</em> is set up.
+                          </li>
+                          <li style={{ marginBottom: '6px' }}>
+                            <strong>Use Chrome or Edge</strong> — Firefox does not support platform biometrics on Windows.
+                          </li>
+                          <li style={{ marginBottom: '6px' }}>
+                            <strong>When the browser prompts you</strong>, select <em>"This device"</em> or <em>"Windows Hello"</em> — do <em>NOT</em> choose "Google Password Manager" or "Phone".
+                          </li>
+                          <li style={{ marginBottom: '6px' }}>
+                            <strong>Touch the fingerprint sensor</strong> or look at the camera when Windows Hello activates.
+                          </li>
+                          <li>
+                            <strong>On mobile</strong> (Android Chrome / iOS Safari): you will be prompted for your fingerprint or face automatically.
+                          </li>
+                        </ol>
+                        <div style={{
+                          marginTop: '10px', padding: '8px 12px',
+                          background: '#fef3c7', borderRadius: '8px',
+                          fontSize: '12px', color: '#92400e',
+                        }}>
+                          ⚠️ <strong>Important:</strong> You must register on <em>every device</em> you want to use for check-in. Credentials are stored per-device and per-browser.
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleRegisterFingerprint}
+                      disabled={fingerprintLoading || webauthnSupported === false}
+                      className="primary-btn"
+                      style={{
+                        opacity: (fingerprintLoading || webauthnSupported === false) ? 0.6 : 1,
+                        cursor: (fingerprintLoading || webauthnSupported === false) ? 'not-allowed' : 'pointer',
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                      }}
+                    >
+                      <Fingerprint size={16} />
+                      {fingerprintLoading ? 'Waiting for biometric scan…' : 'Register Fingerprint / Face'}
+                    </button>
+                    <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '8px' }}>
+                      When prompted by the browser, choose <strong>"This device"</strong> or <strong>"Windows Hello"</strong> — not Google Password Manager.
+                    </p>
+                  </>
+                )}
+
+                {/* Result message */}
+                {fingerprintMessage && (
+                  <div style={{
+                    marginTop: '16px', padding: '12px 16px',
+                    background: fingerprintMessage.startsWith('✅') ? '#d1fae5' : '#fee2e2',
+                    color: fingerprintMessage.startsWith('✅') ? '#065f46' : '#b91c1c',
+                    borderRadius: '8px', fontSize: '14px', lineHeight: 1.6,
+                    border: `1px solid ${fingerprintMessage.startsWith('✅') ? '#6ee7b7' : '#fca5a5'}`,
+                  }}>
+                    {fingerprintMessage}
+                    {/* Show re-register suggestion on common errors */}
+                    {fingerprintMessage.includes('different device') || fingerprintMessage.includes('No matching') ? (
+                      <div style={{ marginTop: '8px', fontSize: '13px' }}>
+                        👉 Click <strong>Re-register Fingerprint</strong> above to register on this device.
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
+                <div style={{
+                  marginTop: '16px', padding: '12px',
+                  background: '#f0f9ff', borderRadius: '8px',
+                  fontSize: '13px', color: '#0369a1', lineHeight: 1.6,
+                }}>
+                  <strong>💡 Tip:</strong> Once registered, use your fingerprint to check in at the Reports page — no password needed.
+                  Each device and browser needs its own registration.
+                </div>
+              </div>
             </div>
           ) : (
             <form onSubmit={handlePasswordChange}>

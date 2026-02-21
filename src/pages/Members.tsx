@@ -459,30 +459,26 @@ const Members: React.FC = () => {
   // RENDER
   // ═══════════════════════════════════════════════════════════════════════════
   return (
-    <div style={{ padding: '24px', background: '#f8fafc', minHeight: '100vh' }}>
+    <div className="axpage" style={{ background: '#f8fafc', minHeight: '100vh' }}>
 
       {/* Header */}
-      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: '26px', fontWeight: 700, margin: 0, color: '#0f172a' }}>Members</h1>
-        <button onClick={() => setShowAddModal(true)}
-          style={{ background: '#6366f1', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}>
+      <div className="members-page-header">
+        <h1>Members</h1>
+        <button className="members-add-btn" onClick={() => setShowAddModal(true)}>
           + Add Member
         </button>
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        <input type="text" placeholder="Search name, email, institution…" value={query} onChange={e => setQuery(e.target.value)}
-          style={{ flex: 1, minWidth: '200px', padding: '9px 14px', border: '1px solid #d1d5db', borderRadius: '8px' }} />
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          style={{ padding: '9px 14px', border: '1px solid #d1d5db', borderRadius: '8px' }}>
+      <div className="members-filters">
+        <input type="text" placeholder="Search name, email, institution…" value={query} onChange={e => setQuery(e.target.value)} />
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           <option value="all">All Status</option>
           <option value="pending">Pending</option>
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
         </select>
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
-          style={{ padding: '9px 14px', border: '1px solid #d1d5db', borderRadius: '8px' }}>
+        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
           <option value="all">All Types</option>
           <option value="student">Student</option>
           <option value="non_student">Non-Student</option>
@@ -495,12 +491,12 @@ const Members: React.FC = () => {
       ) : shown.length === 0 ? (
         <p style={{ color: '#6b7280' }}>No members found.</p>
       ) : (
-        <div style={{ overflowX: 'auto', background: 'white', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.07)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+        <div className="members-table-wrap">
+          <table className="members-table">
             <thead>
-              <tr style={{ background: '#f1f5f9' }}>
+              <tr>
                 {['Photo', 'Name', 'Email', 'Phone', 'Role', 'Type', 'Status', 'Actions'].map(h => (
-                  <th key={h} style={{ padding: '13px 12px', textAlign: h === 'Actions' ? 'center' : 'left', fontWeight: 600 }}>{h}</th>
+                  <th key={h}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -508,9 +504,9 @@ const Members: React.FC = () => {
               {shown.map(m => {
                 const busy = actionLoading === m._id;
                 return (
-                  <tr key={m._id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                  <tr key={m._id}>
                     {/* Thumbnail passport photo */}
-                    <td style={{ padding: '10px 12px' }}>
+                    <td data-label="Photo">
                       {m.passportPhotoFile ? (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                           <img
@@ -532,14 +528,14 @@ const Members: React.FC = () => {
                         </div>
                       )}
                     </td>
-                    <td style={{ padding: '12px', fontWeight: 500 }}>{m.fullName}</td>
-                    <td style={{ padding: '12px' }}>{m.email}</td>
-                    <td style={{ padding: '12px' }}>{m.phone}</td>
-                    <td style={{ padding: '12px' }}><RolePill role={m.role} /></td>
-                    <td style={{ padding: '12px', textTransform: 'capitalize' }}>{m.accountType.replace('_', ' ')}</td>
-                    <td style={{ padding: '12px' }}><StatusBadge s={m.verificationStatus} /></td>
-                    <td style={{ padding: '12px' }}>
-                      <div style={{ display: 'flex', gap: '5px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <td data-label="Name" style={{ fontWeight: 500 }}>{m.fullName}</td>
+                    <td data-label="Email">{m.email}</td>
+                    <td data-label="Phone">{m.phone}</td>
+                    <td data-label="Role"><RolePill role={m.role} /></td>
+                    <td data-label="Type" style={{ textTransform: 'capitalize' }}>{m.accountType.replace('_', ' ')}</td>
+                    <td data-label="Status"><StatusBadge s={m.verificationStatus} /></td>
+                    <td data-label="Actions">
+                      <div className="members-actions">
                         <button onClick={() => { setSelected(m); setShowDetails(true); }} style={abtn('#6366f1')}>View</button>
                         {m.verificationStatus === 'pending' && (
                           <>
@@ -549,11 +545,11 @@ const Members: React.FC = () => {
                         )}
                         {m.verificationStatus === 'approved' && m.role !== 'admin' && (
                           <button onClick={() => handleImpersonate(m)} disabled={busy} style={abtn('#0891b2', busy)} title="Log in as this user">
-                            <UserIcon /> Login as User
+                            <UserIcon /> Login as
                           </button>
                         )}
                         <button onClick={() => openResetPw(m)} style={abtn('#f59e0b')} title="Reset password">
-                          <KeyIcon /> Reset PW
+                          <KeyIcon /> Reset
                         </button>
                         <button onClick={() => handleDelete(m._id, m.fullName)} disabled={busy} style={abtn('#6b7280', busy)}>Delete</button>
                       </div>
@@ -568,12 +564,12 @@ const Members: React.FC = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '20px' }}>
+        <div className="members-pagination">
           <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-            style={{ padding: '7px 14px', borderRadius: '6px', border: '1px solid #d1d5db', cursor: page === 1 ? 'not-allowed' : 'pointer', opacity: page === 1 ? 0.5 : 1 }}>Prev</button>
-          <span style={{ padding: '7px 12px', color: '#6b7280' }}>Page {page} / {totalPages}</span>
+            style={{ opacity: page === 1 ? 0.5 : 1, cursor: page === 1 ? 'not-allowed' : 'pointer' }}>← Prev</button>
+          <span style={{ padding: '7px 12px', color: '#6b7280', fontSize: 14 }}>Page {page} / {totalPages}</span>
           <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-            style={{ padding: '7px 14px', borderRadius: '6px', border: '1px solid #d1d5db', cursor: page === totalPages ? 'not-allowed' : 'pointer', opacity: page === totalPages ? 0.5 : 1 }}>Next</button>
+            style={{ opacity: page === totalPages ? 0.5 : 1, cursor: page === totalPages ? 'not-allowed' : 'pointer' }}>Next →</button>
         </div>
       )}
 

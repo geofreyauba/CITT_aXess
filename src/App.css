@@ -3560,3 +3560,2236 @@ body.dark .role-badge {
   border-color: #2a2a2a !important;
   color: #94a3b8 !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   aXess — RESPONSIVE ADDITIONS
+   ───────────────────────────────────────────────────────────────────────────
+   HOW TO USE:
+     1. Copy this entire block and PASTE IT AT THE VERY BOTTOM of your App.css.
+     2. Do NOT delete anything already in App.css.
+     3. Add the viewport meta tag to your index.html (see STEP 0 below).
+   ═══════════════════════════════════════════════════════════════════════════
+
+   STEP 0 ── Add this inside <head> in public/index.html (if not already there):
+   ─────────────────────────────────────────────────────────────────────────────
+   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+   ─────────────────────────────────────────────────────────────────────────────
+*/
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   1. GLOBAL RESPONSIVE RESET
+   Prevent any element from breaking out of the viewport horizontally.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box !important;
+}
+
+html {
+  overflow-x: hidden !important;
+}
+
+body {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+}
+
+/* All inputs/buttons get a minimum touch target on mobile */
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select,
+  button,
+  a[role="button"],
+  .action-btn,
+  .save-btn,
+  .cancel-btn,
+  .add-room-btn,
+  .request-btn,
+  .signout-btn,
+  .reports-export,
+  .sidebar-logout,
+  .sidebar-toggle {
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px !important; /* prevent iOS auto-zoom on focus */
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   2. APP SHELL — sidebar + main layout
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── SIDEBAR: hide on mobile, show as overlay via JS class ── */
+@media (max-width: 768px) {
+  .main-layout {
+    flex-direction: column !important;
+    overflow: visible !important;
+  }
+
+  /* Sidebar hidden off-screen by default on mobile */
+  .sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: 260px !important;
+    z-index: 200 !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    overflow-y: auto !important;
+    height: 100vh !important;
+  }
+
+  /* Add class "sidebar-open" to <aside> via JS to show it */
+  .sidebar.sidebar-open {
+    transform: translateX(0) !important;
+  }
+
+  /* Dimming overlay — shown when sidebar is open */
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 199;
+  }
+
+  .sidebar-overlay.visible {
+    display: block;
+  }
+
+  /* Collapsed class has no effect on mobile — always full width when open */
+  .sidebar.sidebar-collapsed {
+    width: 260px !important;
+  }
+
+  .sidebar.sidebar-collapsed .sidebar-label,
+  .sidebar.sidebar-collapsed .sidebar-logo {
+    display: block !important;
+    opacity: 1 !important;
+  }
+
+  .content {
+    padding: 1rem !important;
+    width: 100% !important;
+    overflow-x: hidden !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. HEADER — add hamburger on mobile
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Hamburger button — hidden on desktop, shown on mobile */
+.header-hamburger {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  color: var(--soft-blue-dark);
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding: 0.6rem 1rem !important;
+    gap: 0.5rem !important;
+  }
+
+  .header-hamburger {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Shrink search bar on mobile or hide it */
+  .header-search {
+    display: none !important; /* hidden on mobile — too narrow */
+  }
+
+  .header-title {
+    font-size: 0.95rem !important;
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .header-icons {
+    gap: 0.25rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-title span {
+    display: none; /* hide page-name text, keep logo/icon */
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. SECTION TITLES & GENERAL TYPOGRAPHY
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  .section-title {
+    font-size: clamp(1.2rem, 5vw, 1.6rem) !important;
+    margin-bottom: 1rem !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. DASHBOARD — stat cards, chart cards, role previews
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 900px) {
+  .stat-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 1rem !important;
+  }
+
+  .chart-cards {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+
+  .role-previews {
+    grid-template-columns: 1fr !important;
+    gap: 1.2rem !important;
+  }
+
+  .status-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .stat-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+
+  .stat-card {
+    padding: 1rem !important;
+  }
+
+  .stat-card-value {
+    font-size: 1.5rem !important;
+  }
+
+  .stat-card-icon {
+    width: 36px !important;
+    height: 36px !important;
+    margin-bottom: 0.5rem !important;
+    font-size: 1.1rem !important;
+  }
+
+  .chart-card {
+    padding: 1rem !important;
+  }
+
+  .status-cards {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* Timeline stacks vertically on tiny screens */
+  .timeline {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.5rem !important;
+  }
+
+  .timeline-connector {
+    width: 2px !important;
+    height: 24px !important;
+    align-self: center;
+  }
+
+  .timeline-step {
+    min-width: unset !important;
+    width: 100% !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   6. TABLES — make all tables scroll horizontally on mobile
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Wrap any table that might overflow */
+.innovator-table,
+.history-table {
+  display: block !important;
+  width: 100% !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* History table container already has overflow-x:auto — reinforce */
+.history-table-container {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  width: 100% !important;
+  max-width: 100vw !important;
+}
+
+@media (max-width: 768px) {
+  .innovator-table th,
+  .innovator-table td,
+  .history-table th,
+  .history-table td {
+    padding: 0.6rem 0.75rem !important;
+    font-size: 0.82rem !important;
+    white-space: nowrap;
+  }
+
+  /* Reduce min-width so tables don't overflow too much */
+  .history-table {
+    min-width: 560px !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   7. ROOMS PAGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  .rooms-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+  }
+
+  .add-room-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 0.75rem 1rem !important;
+  }
+
+  .rooms-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important;
+    gap: 12px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .rooms-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .room-card {
+    padding: 0.75rem !important;
+  }
+
+  .room-name {
+    font-size: 0.9rem !important;
+  }
+
+  .room-code {
+    font-size: 0.7rem !important;
+  }
+
+  /* Action buttons always visible on touch (no hover) */
+  .room-actions {
+    opacity: 1 !important;
+  }
+
+  .action-btn {
+    width: 32px !important;
+    height: 32px !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   8. REQUESTS PAGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  .request-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  .request-card {
+    aspect-ratio: auto !important;
+    min-height: 160px !important;
+    padding: 1rem !important;
+  }
+
+  .history-section {
+    margin-top: 2rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .request-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+
+  .request-card {
+    min-height: 140px !important;
+    padding: 0.75rem !important;
+  }
+
+  .request-btn {
+    font-size: 0.78rem !important;
+    padding: 0.4rem 0.75rem !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   9. MEMBERS PAGE — typically a table/list
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* Wrap all members/admin tables */
+  .members-table-container,
+  [class*="table-container"],
+  [class*="members-table"] {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+  }
+
+  /* Header bar with search + add button */
+  .members-header,
+  .page-header {
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+
+  .members-header input,
+  .members-header .search-input {
+    width: 100% !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   10. MODALS & OVERLAYS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 600px) {
+  .modal-overlay {
+    align-items: flex-end !important; /* slide up from bottom on mobile */
+    padding: 0 !important;
+  }
+
+  .modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 20px 20px 0 0 !important; /* rounded top only */
+    padding: 1.5rem 1.25rem !important;
+    max-height: 92vh !important;
+    overflow-y: auto !important;
+  }
+
+  .modal-buttons {
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
+    gap: 0.6rem !important;
+  }
+
+  .cancel-btn,
+  .save-btn {
+    width: 100% !important;
+    text-align: center !important;
+    padding: 0.85rem 1rem !important;
+    font-size: 1rem !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   11. SETTINGS PAGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  .settings-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1.2rem !important;
+  }
+
+  .settings-card {
+    padding: 1.25rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-card {
+    padding: 1rem !important;
+    border-radius: 12px !important;
+  }
+
+  .card-header h2 {
+    font-size: 1.1rem !important;
+  }
+
+  /* Toggle rows stack label above toggle */
+  .toggle-row {
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   12. HELP & SUPPORT PAGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 900px) {
+  .help-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1.2rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .help-card {
+    padding: 1.25rem !important;
+  }
+
+  .contact-method {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.5rem !important;
+  }
+
+  .faq-item h3 {
+    font-size: 0.95rem !important;
+  }
+
+  .faq-item p {
+    font-size: 0.85rem !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   13. REPORTS PAGE — filter bar, stat cards, table
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  .reports-filters,
+  .filter-row {
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+    align-items: stretch !important;
+  }
+
+  .reports-filters select,
+  .reports-filters input,
+  .filter-row select,
+  .filter-row input {
+    width: 100% !important;
+  }
+
+  .reports-export {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Reports stat grid */
+  .reports-stats,
+  .reports-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.75rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .reports-stats,
+  .reports-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   14. PENDING RETURNS PAGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* Tab buttons */
+  .pending-tabs {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+
+  .pending-tabs button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Pending returns stat row */
+  .pending-stats {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   15. LOGIN & REGISTER PAGES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  /* Login card fills screen on small phones */
+  /* (These are inline-styled in Login.tsx so we use attribute selectors) */
+  .auth-card,
+  [class*="auth-card"] {
+    padding: 1.5rem 1.25rem !important;
+    border-radius: 12px !important;
+    margin: 1rem !important;
+    width: calc(100vw - 2rem) !important;
+  }
+}
+
+/* ── Register page form layout ── */
+@media (max-width: 600px) {
+  .register-form,
+  .register-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   16. PROFILE POPUP (header dropdown)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .profile-popup,
+  [class*="profile-popup"] {
+    right: 0.5rem !important;
+    left: 0.5rem !important;
+    width: auto !important;
+    max-width: calc(100vw - 1rem) !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   17. NOTIFICATION / BELL CONTAINER
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .notification-bell-container {
+    top: 6px !important;
+    right: 6px !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   18. SIDEBAR COLLAPSED STATE — desktop still works
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (min-width: 769px) {
+  .sidebar-collapsed {
+    width: 64px !important;
+  }
+
+  .sidebar-collapsed .sidebar-label {
+    display: none !important;
+  }
+
+  .sidebar-collapsed .sidebar-logo {
+    font-size: 1rem !important;
+    text-align: center !important;
+    padding: 0 0.5rem 1rem !important;
+  }
+
+  .sidebar-collapsed .sidebar-nav a {
+    justify-content: center !important;
+    padding: 0.75rem !important;
+  }
+
+  .sidebar-collapsed .sidebar-bottom {
+    align-items: center !important;
+  }
+
+  .sidebar-collapsed .sidebar-logout {
+    justify-content: center !important;
+    padding: 0.75rem !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   19. INLINE-STYLED ELEMENTS FROM TSX FILES
+   These catch common patterns where inline style is used instead of classes.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* Dashboard "Most Requested Rooms" table */
+  .role-section {
+    overflow-x: auto !important;
+  }
+
+  /* Dashboard role-section tables */
+  .role-section table {
+    min-width: 460px !important;
+    overflow-x: auto !important;
+    display: block !important;
+  }
+
+  /* Guard card & room availability card */
+  .guard-card {
+    padding: 1rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Make "Request Status Overview" cards 2-column instead of 4 */
+  .role-section .status-cards {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* Shrink large status numbers */
+  .status-detail[style*="font-size: '24px'"],
+  .status-detail[style*="fontSize: '24px'"] {
+    font-size: 18px !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   20. UTILITY — SAFE AREA INSET (iPhone notch / home bar)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  @media (max-width: 768px) {
+    .content {
+      padding-bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
+    }
+
+    .sidebar {
+      padding-bottom: env(safe-area-inset-bottom) !important;
+    }
+  }
+}
+/* ═══════════════════════════════════════════════════════════════════════════
+   aXess — COMPLETE RESPONSIVE OVERHAUL v2
+   ───────────────────────────────────────────────────────────────────────────
+   INSTRUCTIONS:
+   1. PASTE THIS ENTIRE FILE at the very BOTTOM of your App.css
+   2. Replace your 3 component files with the new versions provided:
+      - DashboardLayout.tsx  (adds sidebarOpen state + overlay)
+      - Header.tsx           (adds onMenuClick prop + hamburger button)
+      - Sidebar.tsx          (accepts isOpen prop + mobile close button)
+   3. Add viewport meta to public/index.html <head> if missing:
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   GLOBAL RESET — prevent horizontal overflow everywhere
+   ───────────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box !important; }
+html, body { overflow-x: hidden !important; max-width: 100vw !important; }
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   APP SHELL
+   ───────────────────────────────────────────────────────────────────────── */
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SIDEBAR — DESKTOP stays as-is, MOBILE slides in as overlay
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Mobile close button — hidden on desktop */
+.sidebar-mobile-close {
+  display: none;
+}
+
+/* Desktop collapse toggle — always shown on desktop */
+.sidebar-toggle-desktop {
+  display: flex;
+}
+
+/* Mobile sidebar overlay dim */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 199;
+  backdrop-filter: blur(2px);
+}
+.sidebar-overlay.visible {
+  display: block;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   HEADER — hamburger hidden on desktop
+   ───────────────────────────────────────────────────────────────────────── */
+.header-hamburger {
+  display: none !important; /* hidden by default (desktop) */
+  align-items: center;
+  justify-content: center;
+  background: var(--white-glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 8px;
+  cursor: pointer;
+  color: var(--soft-blue-dark);
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+
+/* Notification dropdown responsive */
+.notif-dropdown {
+  position: absolute;
+  top: 54px;
+  right: 0;
+  width: 360px;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+  border: 1px solid #e2e8f0;
+  z-index: 9998;
+  overflow: hidden;
+  animation: fadeSlideIn 0.18s ease;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE BREAKPOINTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+  /* ── Touch targets ── */
+  input, textarea, select, button,
+  .save-btn, .cancel-btn, .add-room-btn,
+  .request-btn, .signout-btn, .reports-export,
+  .pr-approve-btn, .pr-reject-btn, .pr-tab,
+  .pr-call-btn, .pr-email-btn {
+    min-height: 44px !important;
+  }
+  input, textarea, select {
+    font-size: 16px !important; /* prevents iOS zoom */
+  }
+
+  /* ── Layout ── */
+  .main-layout {
+    flex-direction: row !important; /* keep row — sidebar is overlay */
+    position: relative;
+  }
+
+  .content {
+    padding: 1rem !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }
+
+  /* ── SIDEBAR: slide-in drawer ── */
+  .sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: 260px !important;
+    height: 100vh !important;
+    z-index: 200 !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    overflow-y: auto !important;
+    padding-top: 0 !important;
+  }
+
+  .sidebar.sidebar-open {
+    transform: translateX(0) !important;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.2) !important;
+  }
+
+  /* Restore labels when open on mobile */
+  .sidebar.sidebar-open .sidebar-label,
+  .sidebar.sidebar-open .sidebar-logo {
+    display: block !important;
+    opacity: 1 !important;
+  }
+
+  /* Mobile close X inside sidebar */
+  .sidebar-mobile-close {
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-end;
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 1rem 1rem 0.5rem;
+    cursor: pointer;
+    color: var(--muted-text);
+  }
+
+  /* Hide desktop collapse toggle on mobile */
+  .sidebar-toggle-desktop {
+    display: none !important;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    padding: 0.5rem 0.75rem !important;
+    gap: 8px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Show hamburger on mobile */
+  .header-hamburger {
+    display: flex !important;
+  }
+
+  /* Hide date text on mobile, keep time only */
+  .header-date {
+    display: none !important;
+  }
+
+  /* Shrink clock widget on mobile */
+  .header-clock {
+    padding: 4px 10px !important;
+    gap: 8px !important;
+    font-size: 0.88rem !important;
+  }
+
+  .header-clock span[style*="minWidth"] {
+    min-width: 60px !important;
+    font-size: 0.9rem !important;
+  }
+
+  /* Hide welcome text on mobile */
+  .header-welcome {
+    display: none !important;
+  }
+
+  /* Notification dropdown: full width on mobile */
+  .notif-dropdown {
+    position: fixed !important;
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    border-radius: 20px 20px 0 0 !important;
+    max-height: 80vh !important;
+    overflow-y: auto !important;
+    z-index: 9999 !important;
+  }
+
+  /* Profile dropdown: constrain to screen */
+  .header div[style*="position: 'absolute'"],
+  .header div[style*="top: '54px'"] {
+    right: 0 !important;
+    max-width: calc(100vw - 1rem) !important;
+  }
+
+  /* Section titles */
+  .section-title {
+    font-size: clamp(1.15rem, 5vw, 1.5rem) !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  /* ── DASHBOARD ── */
+  .stat-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+  .stat-card { padding: 1rem !important; }
+  .stat-card-value { font-size: 1.5rem !important; }
+  .stat-card-icon { width: 36px !important; height: 36px !important; margin-bottom: 0.5rem !important; }
+
+  .chart-cards {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+  .chart-card { padding: 1rem !important; }
+
+  .role-previews {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+
+  .status-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.6rem !important;
+  }
+
+  /* Timeline stacks vertically */
+  .timeline {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.4rem !important;
+  }
+  .timeline-connector {
+    width: 2px !important;
+    height: 20px !important;
+    align-self: center !important;
+  }
+  .timeline-step {
+    min-width: unset !important;
+    width: 100% !important;
+  }
+
+  /* Role section tables scroll */
+  .role-section {
+    overflow-x: auto !important;
+  }
+  .role-section table {
+    min-width: 460px !important;
+    display: block !important;
+    overflow-x: auto !important;
+  }
+
+  /* ── TABLES ── */
+  .innovator-table,
+  .history-table {
+    display: block !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    width: 100% !important;
+  }
+  .history-table-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .innovator-table th, .innovator-table td,
+  .history-table th, .history-table td {
+    padding: 0.55rem 0.65rem !important;
+    font-size: 0.8rem !important;
+    white-space: nowrap !important;
+  }
+  .history-table { min-width: 540px !important; }
+
+  /* ── ROOMS ── */
+  .rooms-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+  }
+  .add-room-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 0.75rem 1rem !important;
+  }
+  .rooms-grid {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)) !important;
+    gap: 10px !important;
+  }
+  .room-card { padding: 0.75rem !important; }
+  .room-name { font-size: 0.9rem !important; }
+  .room-code { font-size: 0.7rem !important; }
+  .room-actions { opacity: 1 !important; } /* always visible on touch */
+
+  /* ── REQUESTS ── */
+  .request-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .request-card {
+    aspect-ratio: auto !important;
+    min-height: 140px !important;
+    padding: 0.75rem !important;
+  }
+  .history-section { margin-top: 2rem !important; }
+
+  /* ── MODALS ── */
+  .modal-overlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 20px 20px 0 0 !important;
+    padding: 1.5rem 1.25rem !important;
+    max-height: 92vh !important;
+    overflow-y: auto !important;
+  }
+  .modal-buttons {
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
+    gap: 0.5rem !important;
+  }
+  .cancel-btn, .save-btn {
+    width: 100% !important;
+    text-align: center !important;
+    padding: 0.85rem 1rem !important;
+    font-size: 1rem !important;
+  }
+
+  /* ── SETTINGS ── */
+  .settings-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+  .settings-card { padding: 1.1rem !important; }
+  .card-header h2 { font-size: 1.1rem !important; }
+
+  /* ── HELP ── */
+  .help-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+  .help-card { padding: 1.25rem !important; }
+  .contact-method {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.4rem !important;
+  }
+
+  /* ── PENDING RETURNS ── */
+  .pr-page { padding: 0 !important; }
+
+  .pr-page-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+  }
+  .pr-refresh-btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .pr-stat-row {
+    grid-template-columns: 1fr !important;
+    gap: 0.6rem !important;
+  }
+  .pr-stat-pill {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 0.75rem 1rem !important;
+  }
+  .pr-stat-number { font-size: 1.8rem !important; }
+
+  .pr-tabs {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+  .pr-tab {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .pr-search-bar { gap: 0.5rem !important; }
+  .pr-search-input { font-size: 16px !important; }
+
+  .pr-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-radius: 8px !important;
+  }
+  .pr-table {
+    min-width: 600px !important;
+    display: table !important;
+  }
+
+  /* ── MEMBERS / REPORTS pages ── */
+  [class*="members-header"],
+  [class*="page-header"] {
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+  [class*="table-container"] {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    max-width: 100vw !important;
+  }
+
+  /* ── REPORTS ── */
+  .reports-filters, .filter-row {
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+  .reports-export {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* ── Profile popup clamp to screen ── */
+  [class*="profile-popup"] {
+    right: 0.5rem !important;
+    left: 0.5rem !important;
+    width: auto !important;
+    max-width: calc(100vw - 1rem) !important;
+  }
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   EXTRA SMALL (≤ 480px — iPhone SE, small Android)
+   ───────────────────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+
+  .content { padding: 0.75rem !important; }
+
+  /* Header: hide role text, just show icon on very small screens */
+  .role-badge span:last-child {
+    display: none;
+  }
+  .role-badge {
+    padding: 6px 10px !important;
+  }
+
+  /* Clock: hide the separator and calendar icon */
+  .header-clock > span[style*="width: '1px'"],
+  .header-clock svg:last-of-type {
+    display: none !important;
+  }
+
+  /* Stat cards stay 2-col */
+  .stat-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.5rem !important;
+  }
+  .stat-card { padding: 0.75rem !important; }
+  .stat-card-value { font-size: 1.3rem !important; }
+
+  /* Rooms: 3 columns for small tiles */
+  .rooms-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+  }
+  .room-name { font-size: 0.8rem !important; }
+  .room-code { font-size: 0.65rem !important; }
+
+  /* Requests 2-col */
+  .request-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+  .request-card { min-height: 120px !important; padding: 0.6rem !important; }
+
+  /* Pending returns stat row stays column */
+  .pr-stat-number { font-size: 1.5rem !important; }
+
+  /* Tables: slightly larger min to not be cramped */
+  .history-table { min-width: 480px !important; }
+  .pr-table { min-width: 520px !important; }
+
+  /* Settings card */
+  .settings-card { padding: 0.9rem !important; border-radius: 12px !important; }
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   DESKTOP: restore sidebar collapse behaviour (unchanged from original)
+   ───────────────────────────────────────────────────────────────────────── */
+@media (min-width: 769px) {
+  .sidebar-collapsed {
+    width: 64px !important;
+  }
+  .sidebar-collapsed .sidebar-label {
+    display: none !important;
+  }
+  .sidebar-collapsed .sidebar-logo {
+    font-size: 0.9rem !important;
+    text-align: center !important;
+    padding: 0 0.5rem 1rem !important;
+  }
+  .sidebar-collapsed .sidebar-nav a {
+    justify-content: center !important;
+    padding: 0.75rem !important;
+  }
+  .sidebar-collapsed .sidebar-bottom {
+    align-items: center !important;
+    flex-direction: column !important;
+  }
+  .sidebar-collapsed .sidebar-logout {
+    justify-content: center !important;
+    padding: 0.75rem !important;
+  }
+
+  /* Hide mobile close button on desktop */
+  .sidebar-mobile-close {
+    display: none !important;
+  }
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SAFE AREA INSETS (iPhone notch / home bar)
+   ───────────────────────────────────────────────────────────────────────── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  @media (max-width: 768px) {
+    .content {
+      padding-bottom: calc(0.75rem + env(safe-area-inset-bottom)) !important;
+    }
+    .sidebar {
+      padding-bottom: env(safe-area-inset-bottom) !important;
+    }
+    .modal {
+      padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)) !important;
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   aXess — MEMBERS · REQUESTS · REPORTS  Mobile Responsive Fix
+   ───────────────────────────────────────────────────────────────────────────
+   PASTE THIS ENTIRE BLOCK at the bottom of App.css  (after responsive-v2.css)
+   No JSX changes required for Members or Reports.
+   Requests needs one small JSX change — see SECTION 3 comment below.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHARED UTILITIES — used across all three pages
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Responsive page wrapper */
+.axpage {
+  padding: 20px;
+}
+@media (max-width: 768px) {
+  .axpage { padding: 14px 12px; }
+}
+@media (max-width: 480px) {
+  .axpage { padding: 10px 8px; }
+}
+
+/* Scrollable table shell */
+.ax-table-shell {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+  background: #fff;
+}
+
+/* Avatar initials circle */
+.ax-avatar {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px; color: #fff;
+  flex-shrink: 0;
+}
+
+/* Status pill */
+.ax-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECTION 1 — MEMBERS PAGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Page header ── */
+.members-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.members-page-header h1 {
+  font-size: clamp(1.25rem, 5vw, 1.6rem);
+  font-weight: 700;
+  margin: 0;
+  color: #0f172a;
+}
+.members-add-btn {
+  background: #6366f1;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 44px;
+  transition: filter 0.15s;
+}
+.members-add-btn:hover { filter: brightness(1.1); }
+
+/* ── Filters bar ── */
+.members-filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.members-filters input,
+.members-filters select {
+  padding: 9px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  min-height: 44px;
+  background: #fff;
+}
+.members-filters input { flex: 1; min-width: 180px; }
+.members-filters select { min-width: 120px; }
+
+/* ── Members table — Desktop ── */
+.members-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.07);
+}
+.members-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.members-table thead tr { background: #f1f5f9; }
+.members-table th {
+  padding: 13px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+.members-table td { padding: 10px 12px; border-bottom: 1px solid #e5e7eb; }
+.members-table tbody tr:last-child td { border-bottom: none; }
+.members-table tbody tr:hover { background: #f8fafc; }
+
+/* Action buttons in table */
+.members-actions {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+.members-actions button {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  min-height: 32px;
+  transition: filter 0.15s;
+}
+.members-actions button:hover { filter: brightness(1.1); }
+
+/* ── MOBILE: Members card view ── */
+@media (max-width: 768px) {
+
+  /* Hide table header on mobile */
+  .members-table thead { display: none; }
+
+  /* Table becomes block container */
+  .members-table,
+  .members-table tbody,
+  .members-table tbody tr {
+    display: block;
+    width: 100%;
+  }
+
+  /* Each row = a card */
+  .members-table tbody tr {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+    border: 1px solid #e5e7eb;
+    margin-bottom: 12px;
+    padding: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+  .members-table tbody tr:hover { background: #fafbff; }
+
+  /* Left accent stripe per status */
+  .members-table tbody tr::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: #6366f1;
+    border-radius: 4px 0 0 4px;
+  }
+
+  /* All cells block */
+  .members-table td {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: none;
+    font-size: 0.85rem;
+    line-height: 1.4;
+  }
+
+  /* Label from data-label attribute */
+  .members-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: #94a3b8;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    min-width: 72px;
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+
+  /* Photo cell — special layout */
+  .members-table td[data-label="Photo"] {
+    justify-content: flex-start;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 8px;
+  }
+  .members-table td[data-label="Photo"]::before { display: none; }
+  .members-table td[data-label="Photo"] img,
+  .members-table td[data-label="Photo"] > div {
+    width: 52px !important;
+    height: 65px !important;
+    border-radius: 8px !important;
+  }
+
+  /* Name cell — bigger */
+  .members-table td[data-label="Name"] {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  /* Actions cell — stacks buttons */
+  .members-table td[data-label="Actions"] {
+    flex-direction: column;
+    align-items: stretch;
+    padding-top: 10px;
+    margin-top: 6px;
+    border-top: 1px solid #f1f5f9;
+  }
+  .members-table td[data-label="Actions"]::before { display: none; }
+  .members-actions {
+    gap: 6px;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .members-actions button {
+    flex: 1;
+    min-width: 80px;
+    justify-content: center;
+    min-height: 38px;
+    font-size: 0.8rem;
+  }
+
+  /* Pagination */
+  .members-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+  }
+  .members-pagination button {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    background: #fff;
+    font-size: 13px;
+    min-height: 40px;
+    cursor: pointer;
+  }
+
+  /* Add member modal on mobile */
+  .members-add-modal {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .members-add-modal > div {
+    border-radius: 20px 20px 0 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 20px 16px !important;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Details modal full height on mobile */
+  .members-details-modal {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .members-details-modal > div {
+    border-radius: 20px 20px 0 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 94vh !important;
+    padding: 20px 16px !important;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Details info grid — single column */
+  .members-details-grid {
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+  }
+  .members-details-grid strong { color: #94a3b8 !important; }
+
+  /* Detail action buttons */
+  .members-detail-actions {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .members-detail-actions button {
+    width: 100% !important;
+    justify-content: center !important;
+    min-height: 44px !important;
+  }
+
+  /* Members filters — stack on mobile */
+  .members-filters {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .members-filters input,
+  .members-filters select {
+    width: 100%;
+    font-size: 16px !important; /* prevent iOS zoom */
+  }
+}
+
+@media (max-width: 480px) {
+  .members-table tbody tr { padding: 12px 10px; }
+  .members-table td { font-size: 0.82rem; }
+  .members-table td::before { min-width: 64px; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECTION 2 — REQUESTS PAGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Filter bar ── */
+.requests-filters-wrap {
+  background: var(--white-glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-soft);
+}
+
+/* ── Room cards grid ── */
+.request-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+}
+.request-card {
+  border-radius: 14px;
+  cursor: pointer;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  transition: transform 0.15s, box-shadow 0.15s;
+  position: relative;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.request-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.10); }
+
+/* ── History table desktop ── */
+.history-table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.history-table th, .history-table td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+.history-table th { font-weight: 600; background: #f8fafc; white-space: nowrap; }
+.history-table tbody tr:hover { background: #f8fafc; }
+
+/* ── MOBILE: History table → cards ── */
+@media (max-width: 768px) {
+
+  /* Room grid — 2 columns */
+  .request-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .request-card {
+    min-height: 110px !important;
+    padding: 0.75rem !important;
+    border-radius: 12px !important;
+  }
+  .room-name { font-size: 0.85rem !important; }
+  .room-code { font-size: 0.72rem !important; }
+
+  /* Filters wrap — stack on mobile */
+  .requests-filters-wrap { padding: 12px; }
+  .requests-filters-wrap > div:last-child {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .requests-filters-wrap select {
+    width: 100% !important;
+    font-size: 16px !important;
+    min-height: 44px !important;
+  }
+
+  /* Modal full screen from bottom */
+  .modal-overlay { align-items: flex-end !important; }
+  .modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 20px 20px 0 0 !important;
+    max-height: 94vh !important;
+    overflow-y: auto !important;
+    padding: 20px 16px !important;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* ── History section heading ── */
+  .history-section h2.history-title {
+    font-size: 1.05rem;
+    margin-bottom: 12px;
+  }
+
+  /* Hide table header, convert rows to cards */
+  .history-table thead { display: none !important; }
+  .history-table,
+  .history-table tbody,
+  .history-table tbody tr { display: block !important; width: 100% !important; }
+
+  .history-table tbody tr {
+    background: var(--white-glass) !important;
+    border: 1px solid var(--glass-border) !important;
+    border-radius: 14px !important;
+    padding: 14px !important;
+    margin-bottom: 10px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
+    position: relative;
+    overflow: hidden;
+  }
+  .history-table tbody tr::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: var(--soft-blue);
+    border-radius: 4px 0 0 4px;
+  }
+
+  .history-table td {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+    padding: 5px 0 !important;
+    border-bottom: none !important;
+    font-size: 0.83rem !important;
+    min-height: unset !important;
+    white-space: normal !important;
+  }
+  .history-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: #94a3b8;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    min-width: 68px;
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+
+  /* Room cell — bigger, first in card */
+  .history-table td[data-label="Room"] {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--soft-blue-dark);
+    padding-bottom: 8px !important;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--glass-border) !important;
+  }
+
+  /* Action cell at bottom */
+  .history-table td[data-label="Action"] {
+    padding-top: 10px !important;
+    margin-top: 4px;
+    border-top: 1px solid var(--glass-border);
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  .history-table td[data-label="Action"]::before { display: none; }
+  .history-table td[data-label="Action"] button {
+    flex: 1;
+    min-width: 100px;
+    justify-content: center;
+    min-height: 40px !important;
+    font-size: 13px !important;
+  }
+
+  /* Status cell — no label needed (badge is self-descriptive) */
+  .history-table td[data-label="Status"]::before { display: none; }
+  .history-table td[data-label="Status"] { padding-bottom: 6px !important; }
+
+  /* Pagination on mobile */
+  .history-pagination {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .history-pagination > span { text-align: center !important; }
+  .history-pagination > div {
+    display: flex !important;
+    justify-content: center !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  .history-pagination button {
+    min-height: 40px !important;
+    font-size: 13px !important;
+  }
+
+  /* Unreturned warning — stack content */
+  .unreturned-warning {
+    flex-direction: column !important;
+    padding: 14px !important;
+    gap: 8px !important;
+  }
+
+  /* Section title */
+  h1.section-title {
+    font-size: clamp(1.1rem, 5vw, 1.4rem) !important;
+    flex-wrap: wrap !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .request-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
+  .history-table td { font-size: 0.8rem !important; }
+  .history-table td::before { min-width: 60px; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECTION 3 — REPORTS PAGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Mini stat cards row ── */
+.reports-mini-stats {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.reports-mini-stats > div {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+/* ── Tab bar ── */
+.reports-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 28px;
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 4px;
+}
+.reports-tab-btn {
+  flex: 1;
+  padding: 9px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 9px;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: all 0.2s;
+  white-space: nowrap;
+  min-height: 44px;
+}
+.reports-tab-btn.active {
+  background: #fff;
+  color: #1e293b;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+}
+
+/* ── Filters bar ── */
+.reports-filters-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  align-items: center;
+}
+.reports-search-wrap {
+  flex: 1;
+  min-width: 200px;
+  position: relative;
+}
+.reports-search-wrap svg {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.reports-search-input {
+  width: 100%;
+  padding: 9px 12px 9px 34px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #fff;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.15s;
+  min-height: 44px;
+}
+.reports-search-input:focus { border-color: #6366f1; }
+
+/* ── Reports table desktop ── */
+.reports-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.reports-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+}
+.reports-table th {
+  padding: 12px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: #f8fafc;
+  white-space: nowrap;
+}
+.reports-table td { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; }
+.reports-table tbody tr:last-child td { border-bottom: none; }
+.reports-table tbody tr:hover { background: #f8fafc; }
+
+/* Attendance table (same as reports) */
+.attendance-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+
+/* ── My status card ── */
+.my-status-card {
+  border-radius: 14px;
+  padding: 22px 24px;
+  margin-bottom: 24px;
+  border-width: 2px;
+  border-style: solid;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+
+/* ── MOBILE: Reports ── */
+@media (max-width: 768px) {
+
+  /* Mini stats — 2 columns */
+  .reports-mini-stats {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .reports-mini-stats > div {
+    flex: unset !important;
+    padding: 12px 14px !important;
+  }
+
+  /* Tabs — full width */
+  .reports-tabs {
+    width: 100% !important;
+  }
+  .reports-tab-btn {
+    font-size: 13px !important;
+    padding: 9px 10px !important;
+    gap: 5px !important;
+  }
+  /* Hide tab label text on very small screens, keep icon */
+  @media (max-width: 360px) {
+    .reports-tab-label { display: none !important; }
+  }
+
+  /* Filters bar — stack */
+  .reports-filters-bar {
+    flex-direction: column !important;
+    gap: 8px !important;
+    padding: 12px !important;
+  }
+  .reports-search-wrap { min-width: unset !important; width: 100% !important; }
+  .reports-search-input { font-size: 16px !important; }
+  .reports-filters-bar select {
+    width: 100% !important;
+    font-size: 16px !important;
+    min-height: 44px !important;
+    padding: 9px 14px !important;
+  }
+  .reports-filters-bar button { width: 100% !important; min-height: 44px !important; }
+
+  /* ── Reports table → cards ── */
+  .reports-table thead { display: none !important; }
+  .reports-table,
+  .reports-table tbody,
+  .reports-table tbody tr { display: block !important; width: 100% !important; }
+
+  .reports-table tbody tr {
+    background: #fff !important;
+    border-radius: 14px !important;
+    border: 1px solid #e2e8f0 !important;
+    margin-bottom: 10px !important;
+    padding: 14px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
+    position: relative;
+    overflow: hidden;
+  }
+  .reports-table tbody tr::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: #6366f1;
+    border-radius: 4px 0 0 4px;
+  }
+
+  .reports-table td {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+    padding: 5px 0 !important;
+    border-bottom: none !important;
+    font-size: 0.83rem !important;
+    white-space: normal !important;
+    max-width: unset !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+  }
+  .reports-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: #94a3b8;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    min-width: 70px;
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+
+  /* User cell — avatar row at top */
+  .reports-table td[data-label="User"] {
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding-bottom: 10px !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+    margin-bottom: 4px;
+  }
+  .reports-table td[data-label="User"]::before { display: none; }
+
+  /* Status cell */
+  .reports-table td[data-label="Status"]::before { display: none; }
+  .reports-table td[data-label="Status"] { padding: 6px 0 !important; }
+
+  /* ── Attendance table → cards ── */
+  .reports-table.attendance-table thead { display: none !important; }
+  .reports-table.attendance-table,
+  .reports-table.attendance-table tbody,
+  .reports-table.attendance-table tbody tr { display: block !important; width: 100% !important; }
+
+  .reports-table.attendance-table tbody tr {
+    background: #fff !important;
+    border-radius: 14px !important;
+    border: 1px solid #e2e8f0 !important;
+    margin-bottom: 10px !important;
+    padding: 14px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
+    position: relative;
+    overflow: hidden;
+  }
+  .reports-table.attendance-table tbody tr::before {
+    background: #10b981;
+  }
+  .reports-table.attendance-table td {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+    padding: 5px 0 !important;
+    border-bottom: none !important;
+    font-size: 0.83rem !important;
+  }
+  .reports-table.attendance-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: #94a3b8;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    min-width: 70px;
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+  .reports-table.attendance-table td[data-label="Name"],
+  .reports-table.attendance-table td[data-label="#"] {
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding-bottom: 10px !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+  }
+  .reports-table.attendance-table td[data-label="#"]::before { display: none; }
+
+  /* My status card — stack on mobile */
+  .my-status-card > div:first-child {
+    flex-direction: column !important;
+    gap: 12px !important;
+    align-items: flex-start !important;
+  }
+  .my-status-card button {
+    width: 100% !important;
+    justify-content: center !important;
+    min-height: 48px !important;
+    font-size: 15px !important;
+  }
+
+  /* Reports/attendance "Today header" */
+  .attendance-header-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+    margin-bottom: 14px;
+  }
+  .attendance-header-row button {
+    width: 100% !important;
+    justify-content: center !important;
+    min-height: 44px !important;
+  }
+
+  /* Pagination */
+  .reports-pagination {
+    justify-content: center !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    margin-top: 16px;
+  }
+  .reports-pagination button {
+    min-height: 40px !important;
+    min-width: 40px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .reports-mini-stats > div { padding: 10px 12px !important; }
+  .reports-table td { font-size: 0.8rem !important; }
+  .reports-table td::before { min-width: 62px; }
+  .reports-table.attendance-table td { font-size: 0.8rem !important; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHARED MODAL POLISH (applies to all pages)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* Any fixed modal overlay → sheet from bottom */
+  div[style*="position: fixed"][style*="align-items: center"] {
+    align-items: flex-end !important;
+  }
+  /* Modals get bottom sheet shape */
+  div[style*="maxWidth: '700px'"],
+  div[style*="maxWidth: '540px'"],
+  div[style*="maxWidth: '420px'"],
+  div[style*="max-width: 700px"],
+  div[style*="max-width: 540px"],
+  div[style*="max-width: 420px"] {
+    border-radius: 20px 20px 0 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    max-height: 94vh !important;
+    overflow-y: auto !important;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+  }
+}

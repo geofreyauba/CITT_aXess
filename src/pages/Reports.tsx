@@ -1,10 +1,15 @@
 // src/pages/Reports.tsx
+// UPDATED — Enhanced UI with stat summary cards, polished tabs, and refined layout
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { Icons } from '../components/icons';
 import Badge, { BadgeVariant } from '../components/ui/Badge';
-import { requestsAPI } from '../lib/api';
+import { requestsAPI, authAPI } from '../lib/api';
+import { startAuthentication } from '@simplewebauthn/browser';
+import { Fingerprint, Clock, CheckCircle, LogOut, Users, Key, TrendingUp, UserCheck } from 'lucide-react';
 
-// --- Interfaces ---
+// ═══════════════════════════════════════════════════════════════════════════
+// INTERFACES
+// ═══════════════════════════════════════════════════════════════════════════
 
 interface KeyRequest {
   _id: string;
@@ -36,68 +41,122 @@ interface KeyRequest {
   createdAt: string;
 }
 
-// --- Helpers ---
+interface AttendanceRecord {
+  _id: string;
+  userId: {
+    _id: string;
+    fullName: string;
+    email: string;
+    phone?: string;
+    membership?: string;
+    role?: string;
+    accountType?: string;
+  };
+  checkInTime: string;
+  checkOutTime?: string;
+  authMethod: 'fingerprint' | 'manual' | 'password';
+  status: 'checked_in' | 'checked_out';
+  date: string;
+  notes?: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
 const formatDateTime = (iso?: string) => {
-  if (!iso) return '\u2014';
-  try { return new Date(iso).toLocaleString(); } catch { return iso; }
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  } catch { return iso; }
+};
+
+const formatTime = (iso?: string) => {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleTimeString('en-GB', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+  } catch { return iso; }
 };
 
 const statusToBadge = (status: string): BadgeVariant => {
   switch (status) {
     case 'pending':  return 'pending';
-    case 'approved': return 'returned';
+    case 'approved': return 'approved';
     case 'returned': return 'returned';
     default:         return 'restricted';
   }
 };
 
-// --- Pulsing notification dot ---
-
-const PulsingDot: React.FC = () => (
-  <>
-    <style>{`
-      @keyframes rp-ping {
-        0%   { transform: scale(1);   opacity: 0.8; }
-        70%  { transform: scale(2.4); opacity: 0; }
-        100% { transform: scale(2.4); opacity: 0; }
-      }
-      @keyframes rp-solid {
-        0%, 100% { opacity: 1; }
-        50%       { opacity: 0.55; }
-      }
-      .rp-wrap  { position:absolute; top:10px; right:10px; width:14px; height:14px; }
-      .rp-ping  { position:absolute; inset:0; border-radius:50%; background:#ef4444; animation:rp-ping 1.3s cubic-bezier(0,0,0.2,1) infinite; }
-      .rp-solid { position:absolute; inset:2px; border-radius:50%; background:#ef4444; animation:rp-solid 1.3s ease-in-out infinite; }
-    `}</style>
-    <span className="rp-wrap" title="Action required urgently!">
-      <span className="rp-ping" />
-      <span className="rp-solid" />
-    </span>
-  </>
+// ─── Small stat summary card ─────────────────────────────────────────────────
+interface MiniStatProps {
+  icon: React.ReactNode;
+  label: string;
+  value: number | string;
+  color: string;
+  bg: string;
+}
+const MiniStat: React.FC<MiniStatProps> = ({ icon, label, value, color, bg }) => (
+  <div style={{
+    flex: '1 1 160px',
+    background: bg,
+    borderRadius: '12px',
+    padding: '16px 18px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '14px',
+    border: `1px solid ${color}33`,
+    minWidth: 0,
+  }}>
+    <div style={{
+      width: 40, height: 40,
+      borderRadius: '10px',
+      background: color,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0,
+    }}>
+      {icon}
+    </div>
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: '22px', fontWeight: 800, color: '#1e293b', lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', whiteSpace: 'nowrap' }}>{label}</div>
+    </div>
+  </div>
 );
 
-// --- Component ---
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
 
 const Reports: React.FC = () => {
-  const [requests, setRequests]         = useState<KeyRequest[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [query, setQuery]               = useState('');
+  const [activeTab, setActiveTab] = useState<'requests' | 'attendance'>('requests');
+
+  // Request history state
+  const [requests, setRequests] = useState<KeyRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'returned'>('all');
-  const [page, setPage]                 = useState(1);
+  const [page, setPage] = useState(1);
   const perPage = 10;
 
-  const [showModal, setShowModal]           = useState(false);
-  const [pendingList, setPendingList]       = useState<KeyRequest[]>([]);
-  const [pendingLoading, setPendingLoading] = useState(false);
-  const [actioningId, setActioningId]       = useState<string | null>(null);
+  // Attendance state
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [myStatus, setMyStatus] = useState<any>(null);
+  const [checkInLoading, setCheckInLoading] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState('');
 
-  // Data loading
-
-  const loadRequests = useCallback(async () => {
+  // ══════════════════════════════════════════════════════════════════════════
+  // LOAD REQUESTS
+  // ══════════════════════════════════════════════════════════════════════════
+  const loadRequests = async () => {
     try {
       setLoading(true);
       const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
@@ -108,540 +167,614 @@ const Reports: React.FC = () => {
       setRequests(data);
     } catch (err: any) {
       console.error('Failed to load requests:', err);
-      alert((err.message || 'Failed to load requests') + '\n\nPlease contact an administrator to update your role in the database.');
+      alert(err.message || 'Failed to load requests');
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
-  useEffect(() => { loadRequests(); }, [loadRequests]);
-
-  // Pending modal
-
-  const openPendingModal = useCallback(async () => {
-    setShowModal(true);
-    setPendingLoading(true);
+  // ══════════════════════════════════════════════════════════════════════════
+  // LOAD TODAY'S ATTENDANCE
+  // ══════════════════════════════════════════════════════════════════════════
+  const loadAttendance = async () => {
     try {
-      const data = await requestsAPI.getPendingReturns();
-      setPendingList(data);
+      setAttendanceLoading(true);
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/attendance/today', {
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      if (!response.ok) throw new Error('Failed to load attendance');
+      const data = await response.json();
+      setAttendanceRecords(data.attendances || []);
     } catch (err: any) {
-      alert('Failed to load pending returns: ' + err.message);
+      console.error('Failed to load attendance:', err);
     } finally {
-      setPendingLoading(false);
-    }
-  }, []);
-
-  const handleApprove = async (id: string) => {
-    if (!confirm('Approve this return?\n\nThe key will be marked as returned and the room will become available again.')) return;
-    setActioningId(id);
-    try {
-      await requestsAPI.approveReturn(id);
-      setPendingList(prev => prev.filter(r => r._id !== id));
-      const data = await requestsAPI.getAllRequests();
-      setRequests(data);
-    } catch (err: any) {
-      alert('Failed to approve return: ' + err.message);
-    } finally {
-      setActioningId(null);
+      setAttendanceLoading(false);
     }
   };
 
-  const handleReject = async (id: string) => {
-    if (!confirm('Reject this return request?\n\nThe user will need to re-submit their sign-out.')) return;
-    setActioningId(id);
+  // ══════════════════════════════════════════════════════════════════════════
+  // CHECK MY ATTENDANCE STATUS
+  // ══════════════════════════════════════════════════════════════════════════
+  const checkMyStatus = async () => {
     try {
-      await requestsAPI.rejectReturn(id);
-      setPendingList(prev => prev.filter(r => r._id !== id));
-      const data = await requestsAPI.getAllRequests();
-      setRequests(data);
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/attendance/my-status', {
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      setMyStatus(data);
     } catch (err: any) {
-      alert('Failed to reject return: ' + err.message);
-    } finally {
-      setActioningId(null);
+      console.error('Failed to check status:', err);
     }
   };
 
-  // Filtering
+  // ══════════════════════════════════════════════════════════════════════════
+  // FINGERPRINT CHECK-IN
+  // ══════════════════════════════════════════════════════════════════════════
+  const handleFingerprintCheckIn = async () => {
+    try {
+      setCheckInLoading(true);
+      const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const email = user.email || currentUserEmail;
+      if (!email) { alert('Email not found. Please log in again.'); return; }
 
+      const optionsResponse = await authAPI.webauthnAuthStart(email);
+      if (!optionsResponse.options) {
+        throw new Error('No fingerprint registered. Please register your fingerprint in Settings.');
+      }
+
+      let credential;
+      try {
+        credential = await startAuthentication(optionsResponse.options);
+      } catch (authError: any) {
+        if (authError.name === 'NotAllowedError') throw new Error('Fingerprint authentication cancelled');
+        throw new Error('Fingerprint authentication failed: ' + authError.message);
+      }
+
+      const verifyResponse = await authAPI.webauthnAuthFinish(optionsResponse.userId, credential);
+      if (!verifyResponse.verified) throw new Error('Fingerprint verification failed');
+
+      const token = localStorage.getItem('authToken');
+      const checkInResponse = await fetch('/api/attendance/check-in', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      if (!checkInResponse.ok) {
+        const error = await checkInResponse.json();
+        throw new Error(error.msg || 'Check-in failed');
+      }
+
+      alert('✅ Checked in successfully!');
+      await Promise.all([loadAttendance(), checkMyStatus()]);
+    } catch (err: any) {
+      console.error('Check-in error:', err);
+      alert('Check-in failed: ' + err.message);
+    } finally {
+      setCheckInLoading(false);
+    }
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CHECK-OUT
+  // ══════════════════════════════════════════════════════════════════════════
+  const handleCheckOut = async () => {
+    if (!confirm('Are you sure you want to check out?')) return;
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/attendance/check-out', {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.msg || 'Check-out failed');
+      }
+      alert('✅ Checked out successfully!');
+      await Promise.all([loadAttendance(), checkMyStatus()]);
+    } catch (err: any) {
+      console.error('Check-out error:', err);
+      alert('Check-out failed: ' + err.message);
+    }
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // LIFECYCLE
+  // ══════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    loadRequests();
+    checkMyStatus();
+    const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    setCurrentUserEmail(user.email || '');
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'attendance') loadAttendance();
+  }, [activeTab]);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // FILTERED REQUESTS
+  // ══════════════════════════════════════════════════════════════════════════
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    return requests
-      .filter(r => {
-        if (statusFilter !== 'all' && r.status !== statusFilter) return false;
-        if (q) {
-          return (
-            r.userId?.fullName?.toLowerCase().includes(q) ||
-            r.userId?.email?.toLowerCase().includes(q) ||
-            r.userId?.phone?.toLowerCase().includes(q) ||
-            r.phone?.toLowerCase().includes(q) ||
-            r.roomId?.name?.toLowerCase().includes(q) ||
-            r.roomId?.code?.toLowerCase().includes(q) ||
-            (r.carriedItems || '').toLowerCase().includes(q) ||
-            (r.membership || '').toLowerCase().includes(q)
-          );
-        }
-        return true;
-      })
-      .sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
+    return requests.filter(r => {
+      const matchesQuery =
+        r.userId?.fullName?.toLowerCase().includes(q) ||
+        r.userId?.phone?.toLowerCase().includes(q)    ||
+        r.userId?.email?.toLowerCase().includes(q)    ||
+        r.roomId?.name?.toLowerCase().includes(q)     ||
+        r.roomId?.code?.toLowerCase().includes(q);
+      const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
+      return matchesQuery && matchesStatus;
+    });
   }, [requests, query, statusFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
-  const shown      = filtered.slice((page - 1) * perPage, page * perPage);
+  const paginated    = filtered.slice((page - 1) * perPage, page * perPage);
+  const totalPages   = Math.ceil(filtered.length / perPage);
 
-  // Analytics
+  // Derived stats for the summary strip (requests tab)
+  const statsStrip = useMemo(() => ({
+    total:    requests.length,
+    pending:  requests.filter(r => r.status === 'pending').length,
+    approved: requests.filter(r => r.status === 'approved').length,
+    returned: requests.filter(r => r.status === 'returned').length,
+  }), [requests]);
 
-  const totalRequests = requests.length;
-  const pendingCount  = requests.filter(r => r.returnApprovalStatus === 'pending_approval').length;
-  const approvedCount = requests.filter(r => r.status === 'approved' || r.status === 'returned').length;
-  const approvalRate  = totalRequests ? Math.round((approvedCount / totalRequests) * 100) : 0;
+  // Derived stats for attendance tab
+  const attendanceStats = useMemo(() => ({
+    total:     attendanceRecords.length,
+    checkedIn: attendanceRecords.filter(r => r.status === 'checked_in').length,
+    checkedOut: attendanceRecords.filter(r => r.status === 'checked_out').length,
+    fingerprint: attendanceRecords.filter(r => r.authMethod === 'fingerprint').length,
+  }), [attendanceRecords]);
 
-  const roomUsage = useMemo(() => {
-    const map = new Map<string, { name: string; code: string; count: number }>();
-    requests.forEach(r => {
-      if (!r.roomId) return;
-      const ex = map.get(r.roomId._id);
-      if (ex) { ex.count++; }
-      else { map.set(r.roomId._id, { name: r.roomId.name, code: r.roomId.code, count: 1 }); }
-    });
-    return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 6);
-  }, [requests]);
-
-  const maxUsage = roomUsage.length ? Math.max(...roomUsage.map(r => r.count)) : 1;
-
-  // CSV export
-
-  const exportCSV = () => {
-    const headers = ['ID', 'Requested By', 'Email', 'Phone', 'Room', 'Carried Items', 'Membership', 'Date', 'Status', 'Returned At'];
-    const rows = filtered.map(r => [
-      r._id,
-      `"${r.userId?.fullName || 'Unknown'}"`,
-      `"${r.userId?.email || ''}"`,
-      `"${r.phone || r.userId?.phone || ''}"`,
-      `"${r.roomId?.name || 'Unknown'} (${r.roomId?.code || ''})"`,
-      `"${(r.carriedItems || '').replace(/"/g, '""')}"`,
-      `"${r.membership || ''}"`,
-      r.requestedAt, r.status, r.returnedAt || '',
-    ]);
-    const csv  = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = `key-requests-${new Date().toISOString().slice(0,10)}.csv`;
-    a.click(); URL.revokeObjectURL(url);
-  };
-
-  if (loading) return <div style={{ padding: '2rem' }}>Loading requests...</div>;
-
+  // ══════════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ══════════════════════════════════════════════════════════════════════════
   return (
-    <>
-      {/* Page header */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.5rem' }}>
-        <h1 className="section-title">Key Requests &amp; Analytics</h1>
-        <button className="reports-export" onClick={exportCSV}>
-          <Icons.BarChart size={18} /> Export CSV
-        </button>
+    <div>
+      {/* ── Page Header ────────────────────────────────────────────────── */}
+      <div style={{ marginBottom: '24px' }}>
+        <h1 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+          <Icons.BarChart size={26} />
+          Reports &amp; Attendance
+        </h1>
+        <p style={{ color: 'var(--muted-text)', fontSize: '14px', margin: 0 }}>
+          Monitor key request history and daily member attendance
+        </p>
       </div>
 
-      {/* Stat cards */}
-      <div className="stat-cards" style={{ marginBottom:'2rem' }}>
+      {/* ── Tabs ─────────────────────────────────────────────────────────── */}
+      <div className="reports-tabs">
+        {(['requests', 'attendance'] as const).map(tab => {
+          const isActive = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              className={`reports-tab-btn${isActive ? ' active' : ''}`}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab === 'requests'
+                ? <><Key size={15} /><span className="reports-tab-label">Request History</span></>
+                : <><Users size={15} /><span className="reports-tab-label">Daily Attendance</span></>}
+            </button>
+          );
+        })}
+      </div>
 
-        <div className="stat-card blue">
-          <div className="stat-card-icon"><Icons.FileText size={28} /></div>
-          <div className="stat-card-value">{totalRequests}</div>
-          <div className="stat-card-label">Total Requests</div>
-        </div>
-
-        {/* PENDING APPROVAL - clickable with pulsing red dot */}
-        <div
-          className="stat-card orange"
-          onClick={openPendingModal}
-          role="button"
-          tabIndex={0}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openPendingModal(); }}
-          style={{ cursor:'pointer', transition:'transform 0.15s, box-shadow 0.15s', position:'relative' }}
-          onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => {
-            e.currentTarget.style.transform = 'translateY(-3px)';
-            e.currentTarget.style.boxShadow = '0 10px 28px rgba(245,158,11,0.3)';
-          }}
-          onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '';
-          }}
-          title="Click to review pending return approvals"
-        >
-          {pendingCount > 0 && <PulsingDot />}
-          <div className="stat-card-icon"><Icons.Clock size={28} /></div>
-          <div className="stat-card-value">{pendingCount}</div>
-          <div className="stat-card-label">Pending Approval</div>
-          {pendingCount > 0 && (
-            <div style={{
-              marginTop:8, display:'flex', alignItems:'center', justifyContent:'center', gap:5,
-              fontSize:11, fontWeight:700, color:'#92400e', background:'#fef3c7',
-              borderRadius:20, padding:'3px 10px',
-            }}>
-              <Icons.AlertTriangle size={11} />
-              Action Required
+      {/* ══════════════════════════════════════════════════════════════════
+          REQUEST HISTORY TAB
+      ══════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'requests' && (
+        <div>
+          {/* Stat Summary Strip */}
+          {!loading && (
+            <div className="reports-mini-stats">
+              <MiniStat icon={<TrendingUp size={18} color="#fff" />} label="Total Requests" value={statsStrip.total}    color="#6366f1" bg="#f5f3ff" />
+              <MiniStat icon={<Clock       size={18} color="#fff" />} label="Pending"        value={statsStrip.pending}  color="#f59e0b" bg="#fffbeb" />
+              <MiniStat icon={<CheckCircle size={18} color="#fff" />} label="Approved"       value={statsStrip.approved} color="#10b981" bg="#f0fdf4" />
+              <MiniStat icon={<LogOut      size={18} color="#fff" />} label="Returned"       value={statsStrip.returned} color="#3b82f6" bg="#eff6ff" />
             </div>
           )}
-        </div>
 
-        <div className="stat-card green">
-          <div className="stat-card-icon"><Icons.CheckCircle size={28} /></div>
-          <div className="stat-card-value">{approvedCount}</div>
-          <div className="stat-card-label">Approved</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-icon"><Icons.BarChart size={28} /></div>
-          <div className="stat-card-value">{approvalRate}%</div>
-          <div className="stat-card-label">Approval Rate</div>
-        </div>
-      </div>
-
-      {/* Main grid */}
-      <div className="reports-grid">
-
-        {/* Table */}
-        <div className="help-card">
-          <div className="card-header">
-            <Icons.FileText size={22} />
-            <h2>All Key Requests</h2>
-          </div>
-
-          <div className="filters-card">
-            <input
-              className="modal-input"
-              value={query}
-              onChange={e => { setQuery(e.target.value); setPage(1); }}
-              placeholder="Search by name, email, phone, room, items, or membership..."
-            />
-            <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value as any); setPage(1); }}>
+          {/* Search and Filter */}
+          <div className="reports-filters-bar">
+            <div className="reports-search-wrap">
+              <Icons.Users size={15} color="#94a3b8" />
+              <input
+                className="reports-search-input"
+                type="text"
+                placeholder="Search by name, phone, email, room..."
+                value={query}
+                onChange={e => { setQuery(e.target.value); setPage(1); }}
+              />
+            </div>
+            <select
+              value={statusFilter}
+              onChange={e => { setStatusFilter(e.target.value as any); setPage(1); }}
+              style={{
+                padding: '9px 14px',
+                border: '1.5px solid #e2e8f0',
+                borderRadius: '8px',
+                fontSize: '14px',
+                minWidth: '150px',
+                background: '#fff',
+                color: '#1e293b',
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
               <option value="all">All Statuses</option>
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
               <option value="returned">Returned</option>
             </select>
+            {(query || statusFilter !== 'all') && (
+              <button
+                onClick={() => { setQuery(''); setStatusFilter('all'); setPage(1); }}
+                style={{ padding: '9px 14px', background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '13px', cursor: 'pointer' }}
+              >
+                Clear
+              </button>
+            )}
           </div>
 
-          <div className="history-table-container">
-            <table className="history-table">
-              <thead>
-                <tr>
-                  <th>Requested By</th>
-                  <th>Phone</th>
-                  <th>Room</th>
-                  <th>Carried Items</th>
-                  <th>Membership</th>
-                  <th>Date</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map(r => (
-                  <tr key={r._id}>
-                    <td>
-                      <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                        <strong>{r.userId?.fullName || 'Unknown'}</strong>
-                        {r.isAdminRequest && r.requestedBy && (
-                          <span style={{
-                            display:'inline-flex', alignItems:'center', gap:4,
-                            background:'#ede9fe', color:'#5b21b6',
-                            borderRadius:6, padding:'2px 7px', fontSize:10, fontWeight:700,
-                          }}>
-                            <Icons.Shield size={9} />
-                            Admin ({r.requestedBy.fullName})
-                          </span>
-                        )}
-                      </div>
-                      {r.userId?.email && (
-                        <div style={{ fontSize:'11px', color:'var(--muted-text)', marginTop:2, display:'flex', alignItems:'center', gap:4 }}>
-                          <Icons.Mail size={10} />
-                          {r.userId.email}
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      {(r.phone || r.userId?.phone) ? (
-                        <span style={{ display:'flex', alignItems:'center', gap:5 }}>
-                          <Icons.Phone size={12} color="var(--muted-text)" />
-                          {r.phone || r.userId?.phone}
-                        </span>
-                      ) : '\u2014'}
-                    </td>
-                    <td>
-                      <span style={{ display:'flex', alignItems:'center', gap:5 }}>
-                        <Icons.Key size={12} color="var(--muted-text)" />
-                        {r.roomId?.name || 'Unknown'}
-                        <span style={{ color:'var(--muted-text)' }}>({r.roomId?.code || ''})</span>
-                      </span>
-                    </td>
-                    <td style={{ maxWidth:'200px' }}>{r.carriedItems || '\u2014'}</td>
-                    <td>{r.membership || '\u2014'}</td>
-                    <td>
-                      <span style={{ display:'flex', alignItems:'center', gap:5 }}>
-                        <Icons.Calendar size={12} color="var(--muted-text)" />
-                        {formatDate(r.requestedAt)}
-                      </span>
-                    </td>
-                    <td>
-                      <Badge variant={statusToBadge(r.status)}>
-                        {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-                {shown.length === 0 && (
-                  <tr><td colSpan={7} className="empty-table">No matching requests</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div style={{ display:'flex', justifyContent:'space-between', marginTop:'1rem' }}>
-            <div>Page {page} of {totalPages}</div>
-            <div style={{ display:'flex', gap:'8px' }}>
-              <button className="cancel-btn" onClick={() => setPage(p => Math.max(1,p-1))} disabled={page===1}>Previous</button>
-              <button className="save-btn" onClick={() => setPage(p => Math.min(totalPages,p+1))} disabled={page===totalPages}>Next</button>
+          {/* Table */}
+          {loading ? (
+            <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+              <Clock size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
+              <div>Loading requests...</div>
             </div>
-          </div>
-        </div>
+          ) : (
+            <>
+              {/* Results count */}
+              <div style={{ marginBottom: '10px', fontSize: '13px', color: '#64748b' }}>
+                Showing <strong>{paginated.length}</strong> of <strong>{filtered.length}</strong> requests
+                {statusFilter !== 'all' && ` · filtered by "${statusFilter}"`}
+              </div>
 
-        {/* Sidebar */}
-        <div className="analytics-panel">
-
-          <div className="help-card">
-            <div className="card-header"><Icons.BarChart size={22} /><h2>Most Used Rooms</h2></div>
-            <div className="top-rooms-list">
-              {roomUsage.length === 0
-                ? <div style={{ padding:'1rem', textAlign:'center', color:'var(--muted-text)' }}>No data yet</div>
-                : roomUsage.map((room, i) => (
-                  <div key={i} className="room-usage-item">
-                    <div className="room-name">{room.name} ({room.code})</div>
-                    <div className="usage-bar-container">
-                      <div className="usage-bar" style={{ width:`${(room.count/maxUsage)*100}%` }} />
-                    </div>
-                    <div className="room-count">{room.count} requests</div>
-                  </div>
-                ))
-              }
-            </div>
-          </div>
-
-          <div className="help-card" style={{ marginTop:'1.5rem' }}>
-            <div className="card-header"><Icons.Users size={22} /><h2>Most Active Users</h2></div>
-            <div className="top-rooms-list">
-              {(() => {
-                const userMap = new Map<string,{name:string;count:number}>();
-                requests.forEach(r => {
-                  if (!r.userId) return;
-                  const ex = userMap.get(r.userId._id);
-                  if (ex) { ex.count++; } else { userMap.set(r.userId._id,{name:r.userId.fullName||'Unknown',count:1}); }
-                });
-                const top = Array.from(userMap.values()).sort((a,b)=>b.count-a.count).slice(0,5);
-                const mx  = top.length ? Math.max(...top.map(u=>u.count)) : 1;
-                return top.length===0
-                  ? <div style={{ padding:'1rem', textAlign:'center', color:'var(--muted-text)' }}>No data yet</div>
-                  : top.map((u,i) => (
-                    <div key={i} className="room-usage-item">
-                      <div className="room-name">{u.name}</div>
-                      <div className="usage-bar-container">
-                        <div className="usage-bar" style={{ width:`${(u.count/mx)*100}%`, backgroundColor:'#3b82f6' }} />
-                      </div>
-                      <div className="room-count">{u.count} requests</div>
-                    </div>
-                  ));
-              })()}
-            </div>
-          </div>
-
-          <div className="help-card" style={{ marginTop:'1.5rem' }}>
-            <div className="card-header"><Icons.Activity size={22} /><h2>Recent Activity</h2></div>
-            <div style={{ padding:'0.5rem 0' }}>
-              {requests.slice(0,5).map((r,i) => (
-                <div key={r._id} style={{ padding:'0.75rem', borderBottom:i<4?'1px solid rgba(15,23,42,0.06)':'none', fontSize:'13px' }}>
-                  <div style={{ fontWeight:600, marginBottom:'4px', display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                    <Icons.User size={12} color="var(--muted-text)" />
-                    {r.userId?.fullName || 'Unknown'}
-                    {r.isAdminRequest && r.requestedBy && (
-                      <span style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#ede9fe', color:'#5b21b6', borderRadius:6, padding:'2px 7px', fontSize:10, fontWeight:700 }}>
-                        <Icons.Shield size={9} />
-                        Admin ({r.requestedBy.fullName})
-                      </span>
+              <div className="reports-table-wrap">
+                <table className="reports-table history-table" style={{ margin: 0, borderRadius: '12px', overflow: 'hidden' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc' }}>
+                      <th>User</th>
+                      <th>Contact</th>
+                      <th>Room</th>
+                      <th>Items</th>
+                      <th>Requested</th>
+                      <th>Status</th>
+                      <th>Duration</th>
+                      <th>Returned</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginated.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} style={{ textAlign: 'center', padding: '60px', color: '#94a3b8' }}>
+                          <CheckCircle size={32} style={{ marginBottom: '10px', opacity: 0.4 }} />
+                          <div style={{ fontWeight: 500 }}>No requests found</div>
+                          {(query || statusFilter !== 'all') && (
+                            <div style={{ fontSize: '13px', marginTop: '4px' }}>Try adjusting your search or filter</div>
+                          )}
+                        </td>
+                      </tr>
+                    ) : (
+                      paginated.map(r => (
+                        <tr key={r._id} style={{ transition: 'background 0.1s' }}
+                          onMouseOver={e => (e.currentTarget.style.background = '#f8fafc')}
+                          onMouseOut={e => (e.currentTarget.style.background = '')}
+                        >
+                          <td data-label="User" style={{ padding: '12px 16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                {(r.userId?.fullName || 'U').charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '14px' }}>{r.userId?.fullName || 'Unknown'}</div>
+                                {r.isAdminRequest && r.requestedBy && (
+                                  <div style={{ fontSize: '11px', color: '#6366f1', marginTop: '2px' }}>🔑 Via: {r.requestedBy.fullName}</div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td data-label="Contact" style={{ padding: '12px 16px' }}>
+                            <div style={{ fontSize: '13px', color: '#374151' }}>{r.userId?.phone || '—'}</div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>{r.userId?.email || '—'}</div>
+                          </td>
+                          <td data-label="Room" style={{ padding: '12px 16px' }}>
+                            <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '14px' }}>{r.roomId?.name || 'Unknown'}</div>
+                            <div style={{ marginTop: '4px' }}><Badge variant="available">{r.roomId?.code || '—'}</Badge></div>
+                          </td>
+                          <td data-label="Items" style={{ padding: '12px 16px', maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#374151', fontSize: '13px' }}>
+                            {r.carriedItems || <span style={{ color: '#cbd5e1' }}>—</span>}
+                          </td>
+                          <td data-label="Requested" style={{ padding: '12px 16px', fontSize: '13px', color: '#475569' }}>{formatDateTime(r.requestedAt)}</td>
+                          <td data-label="Status" style={{ padding: '12px 16px' }}>
+                            <Badge variant={statusToBadge(r.status)}>
+                              {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                            </Badge>
+                          </td>
+                          <td data-label="Duration" style={{ padding: '12px 16px', fontSize: '13px', color: '#475569' }}>
+                            {r.returnedAt
+                              ? (() => {
+                                  const mins = Math.round((new Date(r.returnedAt).getTime() - new Date(r.requestedAt).getTime()) / 60000);
+                                  if (mins < 60) return `${mins}m`;
+                                  const h = Math.floor(mins / 60), m = mins % 60;
+                                  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+                                })()
+                              : <span style={{ color: '#cbd5e1' }}>—</span>}
+                          </td>
+                          <td data-label="Returned" style={{ padding: '12px 16px', fontSize: '13px', color: '#475569' }}>{formatDateTime(r.returnedAt)}</td>
+                        </tr>
+                      ))
                     )}
-                  </div>
-                  <div style={{ color:'var(--muted-text)', marginBottom:'4px', display:'flex', alignItems:'center', gap:5 }}>
-                    <Icons.Key size={11} />
-                    {r.roomId?.name||'Unknown'} ({r.roomId?.code||'\u2014'})
-                  </div>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                    <span style={{ fontSize:'11px', color:'var(--muted-text)', display:'flex', alignItems:'center', gap:4 }}>
-                      <Icons.Calendar size={11} />
-                      {formatDate(r.requestedAt)}
-                    </span>
-                    <Badge variant={statusToBadge(r.status)}>{r.status}</Badge>
-                  </div>
-                </div>
-              ))}
-              {requests.length===0 && (
-                <div style={{ padding:'1rem', textAlign:'center', color:'var(--muted-text)' }}>No recent activity</div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+                  </tbody>
+                </table>
+              </div>
 
-      {/* PENDING RETURN APPROVALS MODAL */}
-      {showModal && (
-        <div
-          onClick={() => setShowModal(false)}
-          style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(15,23,42,0.55)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{ background:'var(--white-glass,#fff)', borderRadius:18, width:'100%', maxWidth:820, maxHeight:'88vh', overflowY:'auto', boxShadow:'0 24px 64px rgba(15,23,42,0.22)', border:'1px solid var(--glass-border,rgba(15,23,42,0.08))' }}
-          >
-            {/* Header */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'22px 28px 18px', borderBottom:'1px solid var(--glass-border,rgba(15,23,42,0.08))', position:'sticky', top:0, background:'var(--white-glass,#fff)', zIndex:10 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-                <div style={{ background:'#fef3c7', borderRadius:12, width:46, height:46, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  <Icons.Clock size={24} color="#d97706" />
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    style={{
+                      padding: '8px 14px', border: '1.5px solid #e2e8f0', borderRadius: '8px',
+                      background: '#fff', cursor: page === 1 ? 'not-allowed' : 'pointer',
+                      color: page === 1 ? '#cbd5e1' : '#374151', fontWeight: 500, fontSize: '13px',
+                    }}
+                  >
+                    ← Prev
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setPage(p)}
+                      style={{
+                        padding: '8px 13px',
+                        background: p === page ? '#6366f1' : '#fff',
+                        color: p === page ? '#fff' : '#374151',
+                        border: p === page ? '1.5px solid #6366f1' : '1.5px solid #e2e8f0',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: p === page ? 700 : 500,
+                        fontSize: '13px',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    style={{
+                      padding: '8px 14px', border: '1.5px solid #e2e8f0', borderRadius: '8px',
+                      background: '#fff', cursor: page === totalPages ? 'not-allowed' : 'pointer',
+                      color: page === totalPages ? '#cbd5e1' : '#374151', fontWeight: 500, fontSize: '13px',
+                    }}
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════
+          DAILY ATTENDANCE TAB
+      ══════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'attendance' && (
+        <div>
+          {/* ── Attendance Stat Strip ─────────────────────────────────────── */}
+          {!attendanceLoading && (
+            <div className="reports-mini-stats">
+              <MiniStat icon={<Users       size={18} color="#fff" />} label="Total Today"     value={attendanceStats.total}       color="#6366f1" bg="#f5f3ff" />
+              <MiniStat icon={<CheckCircle size={18} color="#fff" />} label="Checked In"      value={attendanceStats.checkedIn}   color="#10b981" bg="#f0fdf4" />
+              <MiniStat icon={<LogOut      size={18} color="#fff" />} label="Checked Out"     value={attendanceStats.checkedOut}  color="#3b82f6" bg="#eff6ff" />
+              <MiniStat icon={<Fingerprint size={18} color="#fff" />} label="Via Fingerprint" value={attendanceStats.fingerprint} color="#8b5cf6" bg="#f5f3ff" />
+            </div>
+          )}
+
+          {/* ── My Status Card ─────────────────────────────────────────────── */}
+          <div style={{
+            background: myStatus?.checkedIn
+              ? 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)'
+              : 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+            borderRadius: '14px',
+            padding: '22px 24px',
+            marginBottom: '24px',
+            border: `2px solid ${myStatus?.checkedIn ? '#6ee7b7' : '#fcd34d'}`,
+            boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: '50%',
+                  background: myStatus?.checkedIn ? '#10b981' : '#f59e0b',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: `0 0 0 4px ${myStatus?.checkedIn ? '#a7f3d0' : '#fde68a'}`,
+                }}>
+                  {myStatus?.checkedIn
+                    ? <CheckCircle size={24} color="#fff" />
+                    : <Clock size={24} color="#fff" />}
                 </div>
                 <div>
-                  <h2 style={{ margin:0, fontSize:19, fontWeight:700, color:'var(--text,#0f172a)' }}>Pending Return Approvals</h2>
-                  <p style={{ margin:'2px 0 0', fontSize:13, color:'var(--muted-text,#64748b)' }}>Verify the key is physically back, then approve or reject</p>
+                  <div style={{ fontWeight: 700, fontSize: '16px', color: '#1e293b' }}>
+                    {myStatus?.checkedIn ? 'You are checked in' : "You haven't checked in today"}
+                  </div>
+                  {myStatus?.checkedIn && (
+                    <div style={{ fontSize: '13px', color: '#374151', marginTop: '3px' }}>
+                      In: <strong>{formatTime(myStatus.checkInTime)}</strong>
+                      {myStatus.checkOutTime && (
+                        <> &nbsp;·&nbsp; Out: <strong>{formatTime(myStatus.checkOutTime)}</strong></>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
-              <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                {pendingList.length > 0 && (
-                  <div style={{ display:'flex', alignItems:'center', gap:6, background:'#fee2e2', color:'#991b1b', borderRadius:20, padding:'5px 14px', fontSize:13, fontWeight:700, border:'1px solid #fca5a5' }}>
-                    <Icons.AlertTriangle size={14} />
-                    {pendingList.length} Urgent
-                  </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {!myStatus?.checkedIn ? (
+                  <button
+                    onClick={handleFingerprintCheckIn}
+                    disabled={checkInLoading}
+                    style={{
+                      padding: '11px 22px',
+                      background: checkInLoading ? '#6ee7b7' : '#10b981',
+                      color: '#fff',
+                      border: 'none', borderRadius: '10px',
+                      fontWeight: 700, fontSize: '14px',
+                      cursor: checkInLoading ? 'not-allowed' : 'pointer',
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      transition: 'filter 0.15s',
+                    }}
+                    onMouseOver={e => { if (!checkInLoading) e.currentTarget.style.filter = 'brightness(1.08)'; }}
+                    onMouseOut={e => (e.currentTarget.style.filter = 'none')}
+                  >
+                    <Fingerprint size={18} />
+                    {checkInLoading ? 'Checking in…' : 'Check In with Fingerprint'}
+                  </button>
+                ) : myStatus.status === 'checked_in' && (
+                  <button
+                    onClick={handleCheckOut}
+                    style={{
+                      padding: '11px 22px',
+                      background: '#ef4444',
+                      color: '#fff',
+                      border: 'none', borderRadius: '10px',
+                      fontWeight: 700, fontSize: '14px',
+                      cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                    }}
+                  >
+                    <LogOut size={18} />
+                    Check Out
+                  </button>
                 )}
-                <button
-                  onClick={() => setShowModal(false)}
-                  style={{ width:36, height:36, borderRadius:'50%', border:'1px solid var(--glass-border,rgba(15,23,42,0.1))', background:'var(--surface,#f8fafc)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted-text,#64748b)' }}
-                >
-                  <Icons.X size={18} />
-                </button>
               </div>
             </div>
+          </div>
 
-            {/* Body */}
-            <div style={{ padding:'22px 28px' }}>
-              {pendingLoading && (
-                <div style={{ textAlign:'center', padding:'3rem', color:'var(--muted-text,#64748b)' }}>
-                  <Icons.RefreshCw size={32} style={{ opacity:0.4, marginBottom:12 }} />
-                  <p style={{ fontSize:14, marginTop:8 }}>Loading pending approvals...</p>
-                </div>
-              )}
-
-              {!pendingLoading && pendingList.length === 0 && (
-                <div style={{ textAlign:'center', padding:'3rem', color:'var(--muted-text,#64748b)' }}>
-                  <div style={{ width:68, height:68, borderRadius:'50%', background:'#d1fae5', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
-                    <Icons.CheckCircle size={34} color="#10b981" />
-                  </div>
-                  <p style={{ fontWeight:700, fontSize:17, margin:'0 0 6px', color:'var(--text,#0f172a)' }}>All clear!</p>
-                  <p style={{ margin:0, fontSize:14 }}>No pending return approvals at the moment.</p>
-                </div>
-              )}
-
-              {!pendingLoading && pendingList.length > 0 && (
-                <>
-                  <div style={{ background:'#fef3c7', border:'1px solid #fcd34d', borderRadius:10, padding:'12px 18px', marginBottom:20, display:'flex', alignItems:'center', gap:10, fontSize:13, color:'#92400e' }}>
-                    <Icons.AlertTriangle size={16} color="#d97706" />
-                    <span>
-                      <strong>{pendingList.length} return{pendingList.length!==1?'s':''}</strong> waiting for your approval. Please verify the key is physically back before approving.
-                    </span>
-                  </div>
-
-                  <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-                    {pendingList.map(req => (
-                      <div
-                        key={req._id}
-                        style={{ background:'var(--surface,#f8fafc)', border:'1px solid var(--glass-border,rgba(15,23,42,0.08))', borderRadius:14, padding:'20px 22px', display:'flex', flexDirection:'column', gap:14 }}
-                      >
-                        {/* Info row */}
-                        <div style={{ display:'flex', flexWrap:'wrap', gap:20 }}>
-                          <div style={{ flex:1, minWidth:170 }}>
-                            <div style={{ fontSize:10, fontWeight:700, letterSpacing:'0.08em', color:'var(--muted-text,#94a3b8)', textTransform:'uppercase', marginBottom:5 }}>Member</div>
-                            <div style={{ fontWeight:700, fontSize:15, color:'var(--text,#0f172a)', display:'flex', alignItems:'center', gap:6 }}>
-                              <Icons.User size={14} color="var(--muted-text,#94a3b8)" />
-                              {req.userId?.fullName || 'Unknown'}
-                            </div>
-                            {req.userId?.email && (
-                              <div style={{ fontSize:12, color:'var(--muted-text,#64748b)', marginTop:3, display:'flex', alignItems:'center', gap:5 }}>
-                                <Icons.Mail size={11} /> {req.userId.email}
-                              </div>
-                            )}
-                            {(req.phone || req.userId?.phone) && (
-                              <div style={{ fontSize:12, color:'var(--muted-text,#64748b)', marginTop:3, display:'flex', alignItems:'center', gap:5 }}>
-                                <Icons.Phone size={11} /> {req.phone || req.userId?.phone}
-                              </div>
-                            )}
-                          </div>
-                          <div style={{ flex:1, minWidth:140 }}>
-                            <div style={{ fontSize:10, fontWeight:700, letterSpacing:'0.08em', color:'var(--muted-text,#94a3b8)', textTransform:'uppercase', marginBottom:5 }}>Room</div>
-                            <div style={{ fontWeight:700, fontSize:15, color:'var(--text,#0f172a)', display:'flex', alignItems:'center', gap:6 }}>
-                              <Icons.Key size={14} color="var(--muted-text,#94a3b8)" />
-                              {req.roomId?.name || 'Unknown'}
-                            </div>
-                            <div style={{ fontSize:12, color:'var(--muted-text,#64748b)', marginTop:3 }}>Code: <strong>{req.roomId?.code || '\u2014'}</strong></div>
-                          </div>
-                          <div style={{ flex:1, minWidth:120 }}>
-                            <div style={{ fontSize:10, fontWeight:700, letterSpacing:'0.08em', color:'var(--muted-text,#94a3b8)', textTransform:'uppercase', marginBottom:5 }}>Membership</div>
-                            <div style={{ fontSize:14, color:'var(--text,#0f172a)' }}>{req.membership || '\u2014'}</div>
-                          </div>
-                        </div>
-
-                        {req.carriedItems && (
-                          <div style={{ background:'rgba(99,102,241,0.06)', borderRadius:8, padding:'9px 14px', fontSize:13, color:'var(--text,#0f172a)', display:'flex', alignItems:'flex-start', gap:8 }}>
-                            <Icons.FileText size={14} color="#4f46e5" style={{ marginTop:1, flexShrink:0 }} />
-                            <span><span style={{ fontWeight:700, color:'#4f46e5' }}>Items carried: </span>{req.carriedItems}</span>
-                          </div>
-                        )}
-
-                        <div style={{ display:'flex', flexWrap:'wrap', gap:18, fontSize:12, color:'var(--muted-text,#64748b)' }}>
-                          <span style={{ display:'flex', alignItems:'center', gap:5 }}>
-                            <Icons.Calendar size={12} />
-                            Key requested: <strong>{formatDateTime(req.requestedAt)}</strong>
-                          </span>
-                          {req.returnRequestedAt && (
-                            <span style={{ display:'flex', alignItems:'center', gap:5 }}>
-                              <Icons.RefreshCw size={12} />
-                              Return requested: <strong>{formatDateTime(req.returnRequestedAt)}</strong>
-                            </span>
-                          )}
-                        </div>
-
-                        <div style={{ display:'flex', gap:10, justifyContent:'flex-end', paddingTop:6, borderTop:'1px solid var(--glass-border,rgba(15,23,42,0.07))' }}>
-                          <button
-                            onClick={() => handleReject(req._id)}
-                            disabled={actioningId === req._id}
-                            style={{ padding:'9px 22px', borderRadius:9, border:'1.5px solid #fca5a5', background:'#fff', color:'#dc2626', fontSize:13, fontWeight:700, cursor:actioningId===req._id?'not-allowed':'pointer', opacity:actioningId===req._id?0.5:1, transition:'all 0.15s', display:'flex', alignItems:'center', gap:7 }}
-                          >
-                            <Icons.XCircle size={15} />
-                            {actioningId === req._id ? 'Processing...' : 'Reject Return'}
-                          </button>
-                          <button
-                            onClick={() => handleApprove(req._id)}
-                            disabled={actioningId === req._id}
-                            style={{ padding:'9px 26px', borderRadius:9, border:'none', background:actioningId===req._id?'#d1d5db':'linear-gradient(135deg,#10b981,#059669)', color:'#fff', fontSize:13, fontWeight:700, cursor:actioningId===req._id?'not-allowed':'pointer', boxShadow:actioningId===req._id?'none':'0 3px 12px rgba(16,185,129,0.32)', transition:'all 0.15s', display:'flex', alignItems:'center', gap:7 }}
-                          >
-                            <Icons.CheckCircle size={15} />
-                            {actioningId === req._id ? 'Processing...' : 'Approve Return'}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
+          {/* ── Today's Attendance Table ────────────────────────────────────── */}
+          <div>
+            <div className="attendance-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div>
+                <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#1e293b' }}>
+                  Today's Attendance
+                  <span style={{ marginLeft: '10px', fontSize: '13px', fontWeight: 600, background: '#eff6ff', color: '#3b82f6', borderRadius: '20px', padding: '2px 10px' }}>
+                    {attendanceRecords.length}
+                  </span>
+                </h2>
+                <p style={{ margin: '3px 0 0', fontSize: '13px', color: '#94a3b8' }}>
+                  {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                </p>
+              </div>
+              <button
+                onClick={loadAttendance}
+                style={{ padding: '9px 18px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: '9px', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '7px' }}
+              >
+                <Icons.CheckCircle size={15} />
+                Refresh
+              </button>
             </div>
+
+            {attendanceLoading ? (
+              <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+                <Clock size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
+                <div>Loading attendance...</div>
+              </div>
+            ) : (
+              <div className="attendance-table-wrap">
+                <table className="reports-table attendance-table history-table" style={{ margin: 0 }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc' }}>
+                      {['#', 'Name', 'Email', 'Membership', 'Check-in', 'Check-out', 'Status', 'Method'].map(h => (
+                        <th key={h} style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendanceRecords.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} style={{ textAlign: 'center', padding: '60px', color: '#94a3b8' }}>
+                          <Users size={32} style={{ marginBottom: '10px', opacity: 0.4 }} />
+                          <div style={{ fontWeight: 500 }}>No attendance records for today</div>
+                        </td>
+                      </tr>
+                    ) : (
+                      attendanceRecords.map((record, index) => (
+                        <tr key={record._id} style={{ transition: 'background 0.1s' }}
+                          onMouseOver={e => (e.currentTarget.style.background = '#f8fafc')}
+                          onMouseOut={e => (e.currentTarget.style.background = '')}
+                        >
+                          <td data-label="#" style={{ padding: '12px 16px', fontWeight: 700, color: '#6366f1', fontSize: '14px' }}>
+                            {index + 1}
+                          </td>
+                          <td data-label="Name" style={{ padding: '12px 16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                {(record.userId?.fullName || 'U').charAt(0).toUpperCase()}
+                              </div>
+                              <span style={{ fontWeight: 600, color: '#1e293b', fontSize: '14px' }}>
+                                {record.userId?.fullName || 'Unknown'}
+                              </span>
+                            </div>
+                          </td>
+                          <td data-label="Email" style={{ padding: '12px 16px', fontSize: '13px', color: '#64748b' }}>
+                            {record.userId?.email || '—'}
+                          </td>
+                          <td data-label="Membership" style={{ padding: '12px 16px', fontSize: '13px', color: '#374151' }}>
+                            {record.userId?.membership
+                              ? <span style={{ background: '#eff6ff', color: '#3b82f6', borderRadius: '20px', padding: '2px 10px', fontWeight: 600, fontSize: '12px' }}>{record.userId.membership}</span>
+                              : <span style={{ color: '#cbd5e1' }}>None</span>}
+                          </td>
+                          <td data-label="Check-in" style={{ padding: '12px 16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#10b981', fontWeight: 600 }}>
+                              <Clock size={14} />
+                              {formatTime(record.checkInTime)}
+                            </div>
+                          </td>
+                          <td data-label="Check-out" style={{ padding: '12px 16px' }}>
+                            {record.checkOutTime ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#ef4444', fontWeight: 600 }}>
+                                <LogOut size={14} />
+                                {formatTime(record.checkOutTime)}
+                              </div>
+                            ) : (
+                              <span style={{ color: '#cbd5e1', fontSize: '13px' }}>—</span>
+                            )}
+                          </td>
+                          <td data-label="Status" style={{ padding: '12px 16px' }}>
+                            <Badge variant={record.status === 'checked_in' ? 'approved' : 'returned'}>
+                              {record.status === 'checked_in' ? 'Checked In' : 'Checked Out'}
+                            </Badge>
+                          </td>
+                          <td data-label="Method" style={{ padding: '12px 16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#374151' }}>
+                              {record.authMethod === 'fingerprint' && (
+                                <><Fingerprint size={14} color="#8b5cf6" /><span style={{ color: '#8b5cf6', fontWeight: 600 }}>Fingerprint</span></>
+                              )}
+                              {record.authMethod === 'manual' && <span>Manual</span>}
+                              {record.authMethod === 'password' && <span>Password</span>}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 
