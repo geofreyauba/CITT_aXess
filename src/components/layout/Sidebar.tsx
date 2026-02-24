@@ -133,13 +133,8 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin', isOpen = false, onClo
       </nav>
 
       {/* Bottom area */}
-      <div className="sidebar-bottom">
-        <button className="sidebar-logout" onClick={handleLogout} title="Logout">
-          <Icons.LogOut className="sidebar-icon" />
-          <span className="sidebar-label">Logout</span>
-        </button>
-
-        {/* Only show collapse toggle on desktop */}
+      <div className={`sidebar-bottom ${collapsed ? 'sidebar-bottom-collapsed' : ''}`}>
+        {/* Collapse toggle always on top in bottom area */}
         <button
           className="sidebar-toggle sidebar-toggle-desktop"
           onClick={() => setCollapsed(!collapsed)}
@@ -148,6 +143,19 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin', isOpen = false, onClo
           <span className={`toggle-icon ${collapsed ? 'rotated' : ''}`}>
             {collapsed ? '»»' : '««'}
           </span>
+        </button>
+
+        {/* Divider between collapse toggle and logout */}
+        <hr style={{
+          border: 'none',
+          borderTop: '1px solid rgba(255, 255, 255, 0.15)',
+          margin: '4px 8px',
+          width: collapsed ? '80%' : 'calc(100% - 16px)',
+        }} />
+
+        <button className="sidebar-logout" onClick={handleLogout} title="Logout">
+          <Icons.LogOut className="sidebar-icon" />
+          <span className="sidebar-label">Logout</span>
         </button>
       </div>
     </aside>

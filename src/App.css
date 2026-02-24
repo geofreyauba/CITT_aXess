@@ -5793,3 +5793,692 @@ html, body { overflow-x: hidden !important; max-width: 100vw !important; }
     padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
   }
 }
+/* ═══════════════════════════════════════════════════════════════════════════
+   SPLASH SCREEN ANIMATIONS
+   (Optional - these are already included inline in Splash.tsx)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Fade in and scale animation for logo */
+@keyframes splashFadeIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Bouncing dot animation for loading indicator */
+@keyframes bounceDot {
+  0%, 80%, 100% {
+    transform: translateY(0);
+    opacity: 0.7;
+  }
+  40% {
+    transform: translateY(-20px);
+    opacity: 1;
+  }
+}
+
+/* If you prefer to use class-based styling instead of inline: */
+.splash-screen {
+  min-height: 100vh;
+  width: 100vw;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.splash-logo {
+  width: clamp(200px, 40vw, 400px);
+  height: auto;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+  animation: splashFadeIn 0.8s ease-in-out both;
+  filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.3));
+}
+
+.splash-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: white;
+  display: block;
+  animation: bounceDot 1.4s ease-in-out infinite;
+}
+/* ═══════════════════════════════════════════════════
+   SPLASH SCREEN - Logo Container Fix
+═══════════════════════════════════════════════════ */
+
+.splash-logo {
+  width: clamp(120px, 20vw, 200px);
+  height: auto;
+  object-fit: contain;
+  border-radius: 24px;
+  background: white;
+  padding: 24px 32px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  animation: splashFadeIn 0.8s ease-in-out both;
+  user-select: none;
+  pointer-events: none;
+}
+/* ============================================================
+   aXess Campus Hub — Global Responsive CSS
+   Add this to your src/index.css or src/App.css
+   ============================================================ */
+
+/* ── RESET & BASE ─────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  font-size: 16px;
+}
+
+body {
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f8faff;
+  color: #0f172a;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+img, video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input, textarea, select {
+  font-family: inherit;
+}
+
+
+/* ============================================================
+   NAVBAR RESPONSIVE
+   ============================================================ */
+
+/* Hide desktop nav links on tablet/mobile */
+@media (max-width: 860px) {
+  .hm-links {
+    display: none !important;
+  }
+
+  /* Hide the desktop "Log In" pill button */
+  .hm-login-btn {
+    display: none !important;
+  }
+
+  /* Show hamburger */
+  .hm-hamburger {
+    display: flex !important;
+  }
+
+  .hm-nav-in {
+    padding: 8px 14px !important;
+    border-radius: 50px !important;
+  }
+
+  /* Make nav position relative so dropdown positions relative to it */
+  .hm-nav {
+    position: relative !important;
+  }
+}
+
+/* Hamburger hidden on desktop by default */
+.hm-hamburger {
+  display: none;
+}
+
+/* Mobile dropdown menu */
+.hm-mobile-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 12px;
+  right: 12px;
+  background: #ffffff;
+  border-radius: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.14);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  z-index: 399;
+  animation: mobMenuIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes mobMenuIn {
+  from { opacity: 0; transform: translateY(-10px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.hm-mob-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #334155;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.hm-mob-link:hover,
+.hm-mob-link:active {
+  background: #eef2ff;
+  color: #6366f1;
+}
+
+.hm-mob-login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+  transition: all 0.18s;
+  width: 100%;
+}
+
+.hm-mob-login:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
+}
+
+
+/* ============================================================
+   GUEST BANNER
+   ============================================================ */
+@media (max-width: 480px) {
+  .hm-gb {
+    font-size: 10.5px !important;
+    padding: 6px 10px !important;
+    text-align: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    line-height: 1.5;
+  }
+}
+
+
+/* ============================================================
+   HERO SECTION
+   ============================================================ */
+@media (max-width: 768px) {
+  .hm-hero {
+    padding-top: 100px !important;
+    padding-bottom: 48px !important;
+  }
+
+  .hm-hero-in {
+    flex-direction: column !important;
+    gap: 28px !important;
+  }
+
+  /* Show the live rooms card ABOVE the text on mobile */
+  .hm-hero-r {
+    order: -1 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .hm-h1 {
+    font-size: clamp(26px, 7vw, 40px) !important;
+    line-height: 1.12 !important;
+  }
+
+  .hm-tagline {
+    font-size: 15px !important;
+  }
+
+  .hm-desc {
+    font-size: 14px !important;
+    max-width: 100% !important;
+  }
+
+  .hm-eyebrow {
+    font-size: 11px !important;
+  }
+
+  .hm-cta {
+    flex-wrap: wrap;
+    gap: 10px !important;
+  }
+
+  .hm-btn-p,
+  .hm-btn-o {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .hm-hero {
+    padding-top: 96px !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+
+  .hm-h1 {
+    font-size: clamp(22px, 8.5vw, 34px) !important;
+  }
+
+  .hm-hcard {
+    max-width: 100% !important;
+    padding: 16px !important;
+    border-radius: 18px !important;
+  }
+}
+
+
+/* ============================================================
+   SECTIONS — GENERAL
+   ============================================================ */
+@media (max-width: 768px) {
+  .hm-sec {
+    padding: 48px 16px !important;
+  }
+
+  .hm-sec-ttl {
+    font-size: clamp(20px, 5vw, 26px) !important;
+  }
+
+  .hm-sec-sub {
+    font-size: 13.5px !important;
+    margin-bottom: 32px !important;
+  }
+
+  .hm-sec-in {
+    padding: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .hm-sec {
+    padding: 36px 14px !important;
+  }
+
+  .hm-sec-ttl {
+    font-size: 20px !important;
+  }
+}
+
+
+/* ============================================================
+   FEATURES / HOW IT WORKS
+   ============================================================ */
+@media (max-width: 768px) {
+  .hm-feat-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .hm-feat {
+    padding: 22px 18px !important;
+    text-align: left !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    gap: 16px !important;
+  }
+
+  .hm-feat-ico {
+    margin: 0 !important;
+    flex-shrink: 0 !important;
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  .hm-feat-ttl {
+    margin-bottom: 5px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .hm-feat {
+    flex-direction: column !important;
+    text-align: center !important;
+    align-items: center !important;
+  }
+
+  .hm-feat-ico {
+    margin: 0 auto 10px !important;
+  }
+}
+
+
+/* ============================================================
+   ROOMS TOOLBAR & FILTER
+   ============================================================ */
+@media (max-width: 640px) {
+  .hm-rooms-toolbar {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    padding: 10px 12px !important;
+  }
+
+  .hm-search-wrap {
+    min-width: 100% !important;
+    order: -1 !important;
+  }
+
+  .hm-sel {
+    flex: 1 !important;
+    min-width: 120px !important;
+    font-size: 12px !important;
+  }
+
+  .hm-filter-btn {
+    font-size: 12px !important;
+    padding: 8px 11px !important;
+  }
+
+  .hm-filter-panel {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+}
+
+
+/* ============================================================
+   ROOM CARDS GRID
+   ============================================================ */
+@media (max-width: 768px) {
+  .hm-rooms-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .hm-rooms-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+
+/* ============================================================
+   STATS SECTION
+   ============================================================ */
+@media (max-width: 640px) {
+  .hm-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .hm-stat {
+    padding: 18px 10px !important;
+  }
+
+  .hm-stat-n {
+    font-size: 24px !important;
+  }
+}
+
+
+/* ============================================================
+   CTA BOX
+   ============================================================ */
+@media (max-width: 640px) {
+  .hm-cta-box {
+    padding: 32px 20px !important;
+    border-radius: 20px !important;
+    margin: 0 !important;
+  }
+
+  .hm-cta-ttl {
+    font-size: 22px !important;
+  }
+
+  .hm-cta-sub {
+    font-size: 13.5px !important;
+  }
+
+  .hm-cta-btns {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .hm-cta-w,
+  .hm-cta-o {
+    width: 100%;
+    text-align: center;
+    padding: 14px 20px !important;
+  }
+}
+
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+@media (max-width: 480px) {
+  .hm-footer {
+    padding: 28px 14px !important;
+  }
+
+  .hm-footer-links {
+    gap: 12px !important;
+    font-size: 12px !important;
+  }
+}
+
+
+/* ============================================================
+   MODALS (Room detail, Feature detail)
+   ============================================================ */
+@media (max-width: 540px) {
+  .hm-modal {
+    padding: 20px !important;
+    border-radius: 18px !important;
+    max-height: 95vh !important;
+  }
+
+  .hm-mod-name {
+    font-size: 17px !important;
+  }
+
+  .hm-mod-btns {
+    flex-direction: column !important;
+  }
+
+  .hm-mod-close-btn,
+  .hm-mod-login-btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Feature detail modal */
+  .hm-overlay {
+    padding: 10px !important;
+    align-items: flex-end !important;
+  }
+}
+
+
+/* ============================================================
+   CLUBS PAGE (Clubs.tsx)
+   ============================================================ */
+@media (max-width: 768px) {
+  /* Clubs grid: 2 columns on tablet */
+  .clubs-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 18px !important;
+  }
+}
+
+@media (max-width: 500px) {
+  /* Clubs grid: 1 column on small phones */
+  .clubs-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+
+  /* Club page header */
+  .clubs-header {
+    padding: 44px 16px 32px !important;
+  }
+
+  .clubs-header h1 {
+    font-size: 32px !important;
+  }
+
+  /* Club modal */
+  .clubs-modal-inner {
+    border-radius: 18px !important;
+    max-height: 95vh !important;
+  }
+}
+
+
+/* ============================================================
+   CONTACT PAGE (Contact.tsx)
+   ============================================================ */
+@media (max-width: 768px) {
+  .contact-grid {
+    grid-template-columns: 1fr !important;
+    gap: 24px !important;
+  }
+
+  .contact-header {
+    padding: 44px 16px 32px !important;
+  }
+
+  .contact-header h1 {
+    font-size: 34px !important;
+  }
+
+  .contact-form-wrapper {
+    padding: 24px 18px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .contact-header h1 {
+    font-size: 28px !important;
+  }
+
+  .contact-social-icons a {
+    width: 40px !important;
+    height: 40px !important;
+  }
+}
+
+
+/* ============================================================
+   TYPOGRAPHY SCALE — GLOBAL
+   ============================================================ */
+@media (max-width: 768px) {
+  h1 { font-size: clamp(24px, 7vw, 40px); }
+  h2 { font-size: clamp(20px, 5vw, 30px); }
+  h3 { font-size: clamp(16px, 4vw, 22px); }
+}
+
+@media (max-width: 480px) {
+  h1 { font-size: clamp(22px, 8vw, 34px); }
+  h2 { font-size: clamp(18px, 5.5vw, 26px); }
+  p  { font-size: 14px; line-height: 1.7; }
+}
+
+
+/* ============================================================
+   UTILITY — TOUCH DEVICES
+   ============================================================ */
+
+/* Better tap targets on mobile */
+@media (max-width: 768px) {
+  button,
+  a,
+  [role="button"] {
+    min-height: 44px;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px !important; /* prevents iOS zoom on focus */
+  }
+}
+
+/* Remove hover effects on touch devices to avoid sticky states */
+@media (hover: none) {
+  .hm-rcard:hover,
+  .hm-rmini:hover,
+  .hm-feat:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Prevent text selection on interactive elements */
+.hm-hamburger,
+.hm-mob-link,
+.hm-login-btn,
+.hm-mob-login {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+
+/* ============================================================
+   SCROLLBAR — Thin & Subtle
+   ============================================================ */
+::-webkit-scrollbar       { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #818cf8; }
+
+
+/* ============================================================
+   FOCUS VISIBLE — Accessibility
+   ============================================================ */
+:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+.sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 8px;
+  margin-top: 5cmd
+  0px;
+}
+
+.sidebar-bottom-collapsed {
+  align-items: center;
+}

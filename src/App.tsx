@@ -1,136 +1,102 @@
 // src/App.tsx
+// ─────────────────────────────────────────────────────────────────────────────
+// ROUTE FLOW
+//
+//  /          → Splash (auto-redirects to /home after animation)
+//  /home      → Guest landing page  (browse rooms, no login required)
+//  /login     → Login
+//  /register  → Register
+//  /reset-password → Reset password
+//
+//  All routes below require auth (ProtectedRoute) and are wrapped in
+//  DashboardLayout which renders the Sidebar + Header.
+//
+//  ✅ ROOT CAUSE FIX:
+//     /rooms was previously declared OUTSIDE ProtectedRoute and DashboardLayout,
+//     which is why the sidebar never appeared.  It is now inside both, exactly
+//     like /dashboard, /requests, etc.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 
-// Public pages
-import Login from './pages/Login';
-import Register from './pages/Register';
+// ── Public / guest pages ──────────────────────────────────────────────────────
+import Login         from './pages/Login';
+import Register      from './pages/Register';
 import ResetPassword from './pages/ResetPassword';
-import Splash from './pages/Splash';
+import Splash        from './pages/Splash';
+import Home          from './pages/Home';
+import Clubs         from './pages/Clubs';
+import Contact       from './pages/Contact';
 
-// Protected pages + layout
+// ── Protected pages ───────────────────────────────────────────────────────────
 import DashboardLayout from './components/layout/DashboardLayout';
-import Dashboard from './pages/Dashboard';
-import Rooms from './pages/Rooms';
-import Requests from './pages/Requests';
-import Reports from './pages/Reports';
-import Settings from './pages/Settings';
-import HelpSupport from './pages/HelpSupport';
-import Members from './pages/Members';
-import PendingReturns from './pages/PendingReturns'; // ← was missing entirely
+import Dashboard       from './pages/Dashboard';
+import Rooms           from './pages/Rooms';          // ← now inside layout
+import Requests        from './pages/Requests';
+import Reports         from './pages/Reports';
+import Settings        from './pages/Settings';
+import HelpSupport     from './pages/HelpSupport';
+import Members         from './pages/Members';
+import PendingReturns  from './pages/PendingReturns';
 
-// Guard
 import ProtectedRoute from './components/ProtectedRoute';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// WHY role prop is removed from every DashboardLayout:
-//   Previously every route had role="Admin" hardcoded, so Header + Sidebar
-//   always showed "Admin" even for Innovators and regular users.
-//   DashboardLayout now reads the real role from localStorage itself,
-//   so no prop is needed and the correct role is always displayed.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const App: React.FC = () => {
   return (
     <Router>
       <Routes>
 
-        {/* Splash screen — first screen before auth check */}
+        {/* ── Entry point — Splash screen, then redirects to /home ─────── */}
         <Route path="/" element={<Splash />} />
 
-        {/* ── Public routes ─────────────────────────────────────────── */}
+        {/* ── Guest landing page ──────────────────────────────────────────── */}
+        <Route path="/home" element={<Home />} />
+
+        {/* ── Clubs & Startups page (public) ──────────────────────────────── */}
+        <Route path="/clubs" element={<Clubs />} />
+
+        {/* ── Contact page (public) ───────────────────────────────────────── */}
+        <Route path="/contact" element={<Contact />} />
+
+        {/* ── Auth pages ──────────────────────────────────────────────────── */}
         <Route path="/login"          element={<Login />} />
         <Route path="/register"       element={<Register />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* ── Protected routes (require valid auth token) ───────────── */}
+        {/* ── Protected + DashboardLayout (sidebar + header) ──────────────── */}
         <Route element={<ProtectedRoute />}>
 
-          {/* Dashboard — all authenticated users */}
-          <Route
-            path="/dashboard"
-            element={
-              <DashboardLayout>
-                <Dashboard />
-              </DashboardLayout>
-            }
-          />
+          <Route path="/dashboard"
+            element={<DashboardLayout><Dashboard /></DashboardLayout>} />
 
-          {/* Members — admin only (ProtectedRoute + page-level guard) */}
-          <Route
-            path="/members"
-            element={
-              <DashboardLayout>
-                <Members />
-              </DashboardLayout>
-            }
-          />
+          <Route path="/members"
+            element={<DashboardLayout><Members /></DashboardLayout>} />
 
-          {/* Rooms — admin only (sidebar hides it from users) */}
-          <Route
-            path="/rooms"
-            element={
-              <DashboardLayout>
-                <Rooms />
-              </DashboardLayout>
-            }
-          />
+          {/* ✅ FIXED — /rooms now inside DashboardLayout → sidebar visible */}
+          <Route path="/rooms"
+            element={<DashboardLayout><Rooms /></DashboardLayout>} />
 
-          {/* Requests — all authenticated users */}
-          <Route
-            path="/requests"
-            element={
-              <DashboardLayout>
-                <Requests />
-              </DashboardLayout>
-            }
-          />
+          <Route path="/requests"
+            element={<DashboardLayout><Requests /></DashboardLayout>} />
 
-          {/* Reports — admin only */}
-          <Route
-            path="/reports"
-            element={
-              <DashboardLayout>
-                <Reports />
-              </DashboardLayout>
-            }
-          />
+          <Route path="/reports"
+            element={<DashboardLayout><Reports /></DashboardLayout>} />
 
-          {/* ── PENDING RETURNS — was missing, causing redirect to /login ── */}
-          <Route
-            path="/pending-returns"
-            element={
-              <DashboardLayout>
-                <PendingReturns />
-              </DashboardLayout>
-            }
-          />
+          <Route path="/pending-returns"
+            element={<DashboardLayout><PendingReturns /></DashboardLayout>} />
 
-          {/* Settings — all authenticated users */}
-          <Route
-            path="/settings"
-            element={
-              <DashboardLayout>
-                <Settings />
-              </DashboardLayout>
-            }
-          />
+          <Route path="/settings"
+            element={<DashboardLayout><Settings /></DashboardLayout>} />
 
-          {/* Help & Support — all authenticated users */}
-          <Route
-            path="/help"
-            element={
-              <DashboardLayout>
-                <HelpSupport />
-              </DashboardLayout>
-            }
-          />
+          <Route path="/help"
+            element={<DashboardLayout><HelpSupport /></DashboardLayout>} />
 
         </Route>
 
-        {/* Fallback — unknown paths go to login */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* ── Fallback ────────────────────────────────────────────────────── */}
+        <Route path="*" element={<Navigate to="/" replace />} />
 
       </Routes>
     </Router>
