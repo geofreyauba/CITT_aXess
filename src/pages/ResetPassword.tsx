@@ -93,7 +93,7 @@ const ResetPassword: React.FC = () => {
     <div
       style={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: '#1a2332',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -242,7 +242,7 @@ const ResetPassword: React.FC = () => {
               width: '100%', padding: '14px',
               background: loading || !isPasswordStrong || !passwordsMatch || !email.trim()
                 ? '#a5b4fc'
-                : 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                : '#4f46e5',
               color: 'white', border: 'none', borderRadius: '10px',
               fontSize: '16px', fontWeight: 600,
               cursor: loading || !isPasswordStrong || !passwordsMatch || !email.trim()

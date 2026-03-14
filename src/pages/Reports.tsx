@@ -1,11 +1,12 @@
 // src/pages/Reports.tsx
-// UPDATED — Enhanced UI with stat summary cards, polished tabs, and refined layout
+// UPDATED — QR scan check-in for Daily Attendance, phone column, enriched tracking table
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { Icons } from '../components/icons';
 import Badge, { BadgeVariant } from '../components/ui/Badge';
 import { requestsAPI, authAPI } from '../lib/api';
 import { startAuthentication } from '@simplewebauthn/browser';
-import { Fingerprint, Clock, CheckCircle, LogOut, Users, Key, TrendingUp, UserCheck } from 'lucide-react';
+import { Fingerprint, Clock, CheckCircle, LogOut, Users, Key, TrendingUp, UserCheck, QrCode } from 'lucide-react';
+import QRScanner, { QRScanResult } from '../components/QRScanner';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INTERFACES
@@ -54,10 +55,12 @@ interface AttendanceRecord {
   };
   checkInTime: string;
   checkOutTime?: string;
-  authMethod: 'fingerprint' | 'manual' | 'password';
+  authMethod: 'fingerprint' | 'manual' | 'password' | 'qr';
   status: 'checked_in' | 'checked_out';
   date: string;
   notes?: string;
+  scannedName?: string;
+  scannedPhone?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -153,6 +156,11 @@ const Reports: React.FC = () => {
   const [checkInLoading, setCheckInLoading] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState('');
 
+  // QR scan check-in
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [qrCheckInBusy, setQrCheckInBusy] = useState(false);
+  const [qrLastResult,  setQrLastResult]  = useState<{ name: string; phone?: string; time: string } | null>(null);
+
   // ══════════════════════════════════════════════════════════════════════════
   // LOAD REQUESTS
   // ══════════════════════════════════════════════════════════════════════════
@@ -160,8 +168,8 @@ const Reports: React.FC = () => {
     try {
       setLoading(true);
       const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-      if (currentUser.role !== 'admin') {
-        throw new Error('You must be an admin to view all requests. Your current role: ' + (currentUser.role || 'unknown'));
+      if (currentUser.role !== 'admin' && currentUser.role !== 'guard') {
+        throw new Error('You must be an admin or guard to view all requests. Your current role: ' + (currentUser.role || 'unknown'));
       }
       const data = await requestsAPI.getAllRequests();
       setRequests(data);
@@ -280,6 +288,50 @@ const Reports: React.FC = () => {
   };
 
   // ══════════════════════════════════════════════════════════════════════════
+  // QR SCAN CHECK-IN (admin scans a member's ID card to log their entry)
+  // POST /api/attendance/check-in-by-qr  { userId, scannedName, scannedPhone }
+  // ══════════════════════════════════════════════════════════════════════════
+  const handleQRCheckIn = async (result: QRScanResult) => {
+    setShowQRScanner(false);
+    if (!result.userId && !result.fullName) {
+      alert('Could not read member details from QR code. Please try again.');
+      return;
+    }
+    try {
+      setQrCheckInBusy(true);
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/attendance/check-in-by-qr', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId:      result.userId,
+          scannedName: result.fullName,
+          scannedPhone: result.phone,
+          authMethod:  'qr',
+        }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.msg || 'QR check-in failed');
+      }
+      const checkInTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setQrLastResult({
+        name:  result.fullName || result.userId || 'Member',
+        phone: result.phone,
+        time:  checkInTime,
+      });
+      // Auto-dismiss the success banner after 6 seconds
+      setTimeout(() => setQrLastResult(null), 6000);
+      await loadAttendance();
+    } catch (err: any) {
+      console.error('QR check-in error:', err);
+      alert('QR check-in failed: ' + err.message);
+    } finally {
+      setQrCheckInBusy(false);
+    }
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
   // LIFECYCLE
   // ══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
@@ -323,10 +375,11 @@ const Reports: React.FC = () => {
 
   // Derived stats for attendance tab
   const attendanceStats = useMemo(() => ({
-    total:     attendanceRecords.length,
-    checkedIn: attendanceRecords.filter(r => r.status === 'checked_in').length,
-    checkedOut: attendanceRecords.filter(r => r.status === 'checked_out').length,
+    total:       attendanceRecords.length,
+    checkedIn:   attendanceRecords.filter(r => r.status === 'checked_in').length,
+    checkedOut:  attendanceRecords.filter(r => r.status === 'checked_out').length,
     fingerprint: attendanceRecords.filter(r => r.authMethod === 'fingerprint').length,
+    viaQR:       attendanceRecords.filter(r => r.authMethod === 'qr').length,
   }), [attendanceRecords]);
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -569,6 +622,48 @@ const Reports: React.FC = () => {
       ══════════════════════════════════════════════════════════════════ */}
       {activeTab === 'attendance' && (
         <div>
+
+          {/* ── QR Scanner overlay (fullscreen) ─────────────────────────── */}
+          {showQRScanner && (
+            <QRScanner
+              onScan={handleQRCheckIn}
+              onClose={() => setShowQRScanner(false)}
+              title="Scan Member ID Card"
+              subtitle="Scan the QR code on the member's ID card to log their entry"
+              skipLabel="Cancel"
+            />
+          )}
+
+          {/* ── QR check-in success banner ───────────────────────────────── */}
+          {qrLastResult && (
+            <div style={{
+              background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)',
+              border: '2px solid #22c55e', borderRadius: 14,
+              padding: '14px 18px', marginBottom: 18,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14,
+              boxShadow: '0 2px 12px rgba(34,197,94,0.15)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                  background: 'linear-gradient(135deg,#22c55e,#16a34a)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
+                }}>✓</div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: '#15803d' }}>
+                    Entry Logged — {qrLastResult.name}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#166534', marginTop: 3, display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <span>🕐 {qrLastResult.time}</span>
+                    {qrLastResult.phone && <span>📞 {qrLastResult.phone}</span>}
+                    <span style={{ background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '1px 8px', fontSize: 11, fontWeight: 700, color: '#15803d' }}>📷 QR SCAN</span>
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setQrLastResult(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: 18, cursor: 'pointer' }}>×</button>
+            </div>
+          )}
+
           {/* ── Attendance Stat Strip ─────────────────────────────────────── */}
           {!attendanceLoading && (
             <div className="reports-mini-stats">
@@ -576,6 +671,7 @@ const Reports: React.FC = () => {
               <MiniStat icon={<CheckCircle size={18} color="#fff" />} label="Checked In"      value={attendanceStats.checkedIn}   color="#10b981" bg="#f0fdf4" />
               <MiniStat icon={<LogOut      size={18} color="#fff" />} label="Checked Out"     value={attendanceStats.checkedOut}  color="#3b82f6" bg="#eff6ff" />
               <MiniStat icon={<Fingerprint size={18} color="#fff" />} label="Via Fingerprint" value={attendanceStats.fingerprint} color="#8b5cf6" bg="#f5f3ff" />
+              <MiniStat icon={<QrCode      size={18} color="#fff" />} label="Via QR Scan"     value={attendanceStats.viaQR}       color="#0ea5e9" bg="#f0f9ff" />
             </div>
           )}
 
@@ -673,13 +769,32 @@ const Reports: React.FC = () => {
                   {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
                 </p>
               </div>
-              <button
-                onClick={loadAttendance}
-                style={{ padding: '9px 18px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: '9px', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '7px' }}
-              >
-                <Icons.CheckCircle size={15} />
-                Refresh
-              </button>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                {/* ── Scan ID Card to log entry ── */}
+                <button
+                  onClick={() => setShowQRScanner(true)}
+                  disabled={qrCheckInBusy}
+                  style={{
+                    padding: '9px 18px',
+                    background: qrCheckInBusy ? '#bae6fd' : 'linear-gradient(135deg,#0ea5e9,#0284c7)',
+                    color: '#fff', border: 'none', borderRadius: '9px',
+                    fontWeight: 700, fontSize: '13px',
+                    cursor: qrCheckInBusy ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '7px',
+                    boxShadow: '0 2px 8px rgba(14,165,233,0.3)',
+                  }}
+                >
+                  <QrCode size={15} />
+                  {qrCheckInBusy ? 'Logging…' : 'Scan to Check In'}
+                </button>
+                <button
+                  onClick={loadAttendance}
+                  style={{ padding: '9px 18px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: '9px', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '7px' }}
+                >
+                  <Icons.CheckCircle size={15} />
+                  Refresh
+                </button>
+              </div>
             </div>
 
             {attendanceLoading ? (
@@ -692,7 +807,7 @@ const Reports: React.FC = () => {
                 <table className="reports-table attendance-table history-table" style={{ margin: 0 }}>
                   <thead>
                     <tr style={{ background: '#f8fafc' }}>
-                      {['#', 'Name', 'Email', 'Membership', 'Check-in', 'Check-out', 'Status', 'Method'].map(h => (
+                      {['#', 'Name', 'Phone', 'Email', 'Membership', 'Check-in', 'Check-out', 'Status', 'Method'].map(h => (
                         <th key={h} style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                           {h}
                         </th>
@@ -702,9 +817,12 @@ const Reports: React.FC = () => {
                   <tbody>
                     {attendanceRecords.length === 0 ? (
                       <tr>
-                        <td colSpan={8} style={{ textAlign: 'center', padding: '60px', color: '#94a3b8' }}>
+                        <td colSpan={9} style={{ textAlign: 'center', padding: '60px', color: '#94a3b8' }}>
                           <Users size={32} style={{ marginBottom: '10px', opacity: 0.4 }} />
                           <div style={{ fontWeight: 500 }}>No attendance records for today</div>
+                          <div style={{ fontSize: 13, marginTop: 6, color: '#cbd5e1' }}>
+                            Use "Scan to Check In" to log a member's entry via their ID card QR code
+                          </div>
                         </td>
                       </tr>
                     ) : (
@@ -713,33 +831,72 @@ const Reports: React.FC = () => {
                           onMouseOver={e => (e.currentTarget.style.background = '#f8fafc')}
                           onMouseOut={e => (e.currentTarget.style.background = '')}
                         >
+                          {/* # */}
                           <td data-label="#" style={{ padding: '12px 16px', fontWeight: 700, color: '#6366f1', fontSize: '14px' }}>
                             {index + 1}
                           </td>
+
+                          {/* Name */}
                           <td data-label="Name" style={{ padding: '12px 16px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                {(record.userId?.fullName || 'U').charAt(0).toUpperCase()}
+                              <div style={{
+                                width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+                                background: record.authMethod === 'qr'
+                                  ? 'linear-gradient(135deg,#0ea5e9,#0284c7)'
+                                  : 'linear-gradient(135deg,#10b981,#059669)',
+                                color: '#fff', fontWeight: 700, fontSize: '13px',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              }}>
+                                {(record.userId?.fullName || record.scannedName || 'U').charAt(0).toUpperCase()}
                               </div>
-                              <span style={{ fontWeight: 600, color: '#1e293b', fontSize: '14px' }}>
-                                {record.userId?.fullName || 'Unknown'}
-                              </span>
+                              <div>
+                                <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '14px' }}>
+                                  {record.userId?.fullName || record.scannedName || 'Unknown'}
+                                </div>
+                                {record.authMethod === 'qr' && (
+                                  <div style={{ fontSize: 11, color: '#0ea5e9', fontWeight: 600, marginTop: 1 }}>
+                                    📷 QR Scan Entry
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </td>
+
+                          {/* Phone — prominent for easy tracking */}
+                          <td data-label="Phone" style={{ padding: '12px 16px' }}>
+                            {(record.userId?.phone || record.scannedPhone) ? (
+                              <a
+                                href={`tel:${record.userId?.phone || record.scannedPhone}`}
+                                style={{ fontSize: 13, color: '#0284c7', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}
+                              >
+                                📞 {record.userId?.phone || record.scannedPhone}
+                              </a>
+                            ) : (
+                              <span style={{ color: '#cbd5e1', fontSize: 13 }}>—</span>
+                            )}
+                          </td>
+
+                          {/* Email */}
                           <td data-label="Email" style={{ padding: '12px 16px', fontSize: '13px', color: '#64748b' }}>
                             {record.userId?.email || '—'}
                           </td>
+
+                          {/* Membership */}
                           <td data-label="Membership" style={{ padding: '12px 16px', fontSize: '13px', color: '#374151' }}>
                             {record.userId?.membership
                               ? <span style={{ background: '#eff6ff', color: '#3b82f6', borderRadius: '20px', padding: '2px 10px', fontWeight: 600, fontSize: '12px' }}>{record.userId.membership}</span>
                               : <span style={{ color: '#cbd5e1' }}>None</span>}
                           </td>
+
+                          {/* Check-in time */}
                           <td data-label="Check-in" style={{ padding: '12px 16px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#10b981', fontWeight: 600 }}>
                               <Clock size={14} />
                               {formatTime(record.checkInTime)}
                             </div>
                           </td>
+
+                          {/* Check-out time */}
                           <td data-label="Check-out" style={{ padding: '12px 16px' }}>
                             {record.checkOutTime ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#ef4444', fontWeight: 600 }}>
@@ -750,18 +907,35 @@ const Reports: React.FC = () => {
                               <span style={{ color: '#cbd5e1', fontSize: '13px' }}>—</span>
                             )}
                           </td>
+
+                          {/* Status */}
                           <td data-label="Status" style={{ padding: '12px 16px' }}>
                             <Badge variant={record.status === 'checked_in' ? 'approved' : 'returned'}>
                               {record.status === 'checked_in' ? 'Checked In' : 'Checked Out'}
                             </Badge>
                           </td>
+
+                          {/* Method — fingerprint / qr / manual / password */}
                           <td data-label="Method" style={{ padding: '12px 16px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#374151' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
                               {record.authMethod === 'fingerprint' && (
                                 <><Fingerprint size={14} color="#8b5cf6" /><span style={{ color: '#8b5cf6', fontWeight: 600 }}>Fingerprint</span></>
                               )}
-                              {record.authMethod === 'manual' && <span>Manual</span>}
-                              {record.authMethod === 'password' && <span>Password</span>}
+                              {record.authMethod === 'qr' && (
+                                <span style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                                  background: '#e0f2fe', color: '#0284c7',
+                                  borderRadius: 6, padding: '2px 8px', fontWeight: 700, fontSize: 12,
+                                }}>
+                                  <QrCode size={12} /> QR Scan
+                                </span>
+                              )}
+                              {record.authMethod === 'manual' && (
+                                <span style={{ color: '#64748b', fontWeight: 600 }}>✋ Manual</span>
+                              )}
+                              {record.authMethod === 'password' && (
+                                <span style={{ color: '#64748b', fontWeight: 600 }}>🔑 Password</span>
+                              )}
                             </div>
                           </td>
                         </tr>

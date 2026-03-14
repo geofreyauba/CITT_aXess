@@ -100,7 +100,7 @@ const Login: React.FC = () => {
   const s = {
     wrap: {
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: '#1a2332',
       display: 'flex',
       flexDirection: 'column' as const,          // ← changed to column
       alignItems: 'center',
@@ -133,7 +133,7 @@ const Login: React.FC = () => {
       boxSizing: 'border-box' as const,
     },
     btn: (disabled: boolean) => ({
-      background: disabled ? '#a5b4fc' : 'linear-gradient(135deg, #6366f1, #4f46e5)',
+      background: disabled ? '#a5b4fc' : '#4f46e5',
       color: 'white',
       border: 'none',
       padding: '14px 24px',

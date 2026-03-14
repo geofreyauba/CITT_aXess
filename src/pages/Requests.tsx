@@ -3,8 +3,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Icons } from '../components/icons';
 import Badge, { BadgeVariant } from '../components/ui/Badge';
 import { requestsAPI, roomsAPI, authAPI } from '../lib/api';
-import { Lock, MapPin, Navigation, X, Fingerprint, Check, LogOut, Clock, CheckCircle } from 'lucide-react';
+import { Lock, MapPin, Navigation, X, Fingerprint, Check, LogOut, Clock, CheckCircle, QrCode, Users } from 'lucide-react';
 import { startAuthentication } from '@simplewebauthn/browser';
+import QRScanner, { QRScanResult } from '../components/QRScanner';
 
 // Backend URL for images
 const BACKEND = 'http://localhost:5000';
@@ -18,10 +19,12 @@ interface Room {
   floorLabel?: 'basement' | 'ground' | 'first' | 'second';
   direction?: string;
   directionImage?: string;
+  directionImages?: string[];   // ← NEW: multiple direction images (node-based slideshow)
   coordinator?: string;
   capacity?: number | null;
   equipment?: string[];
   isPrivate?: boolean;
+  members?: RoomMember[];
 }
 
 interface RequestHistory {
@@ -38,6 +41,15 @@ interface RequestHistory {
   returnedAt?: string;
   returnRequestedAt?: string;
   createdAt: string;
+}
+
+interface RoomMember {
+  _id: string;
+  name: string;
+  role?: string;
+  phone?: string;
+  email?: string;
+  addedAt?: string;
 }
 
 const formatDateTime = (iso?: string) => {
@@ -84,9 +96,9 @@ const Requests: React.FC = () => {
 
   // ═══════════════════════════════════════════════════════════════
   // ROLE-BASED ACCESS CONTROL
-  // Check if current user is admin for privacy masking
   // ═══════════════════════════════════════════════════════════════
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isGuard, setIsGuard] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string>('');
 
   useEffect(() => {
@@ -95,17 +107,33 @@ const Requests: React.FC = () => {
       if (userStr) {
         const user = JSON.parse(userStr);
         setIsAdmin(user.role === 'admin');
+        setIsGuard(user.role === 'guard');
         setCurrentUserId(user.id || user._id || '');
       }
     } catch (err) {
       console.error('Failed to parse current user:', err);
       setIsAdmin(false);
+      setIsGuard(false);
     }
   }, []);
 
   // Direction image state
   const [showDirection, setShowDirection] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [slideIndex, setSlideIndex] = useState(0);          // ← current slide index
+  const [lightboxIndex, setLightboxIndex] = useState(0);    // ← lightbox slide index
+  const slideTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Members panel state
+  const [showRoomMembers, setShowRoomMembers]   = useState(false);
+  const [roomMembers, setRoomMembers]           = useState<RoomMember[]>([]);
+  const [membersLoading, setMembersLoading]     = useState(false);
+
+  // swipe / drag tracking (touch + mouse)
+  const dragStartX  = React.useRef<number | null>(null);
+  const dragStartY  = React.useRef<number | null>(null);
+  const isDragging  = React.useRef<boolean>(false);
+  const [dragOffset, setDragOffset] = useState(0);
 
   // Fingerprint authentication state
   const [showFingerprintModal, setShowFingerprintModal] = useState(false);
@@ -115,14 +143,20 @@ const Requests: React.FC = () => {
   const [fingerprintSuccess, setFingerprintSuccess] = useState(false);
 
   // ═══════════════════════════════════════════════════════════════
-  // PRIVACY HELPER FUNCTION
-  // Masks phone number for non-admin users viewing other users' data
+  // QR SCANNER STATE
+  // ═══════════════════════════════════════════════════════════════
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [qrScanSuccess, setQrScanSuccess] = useState(false);
+  const [qrScannedName, setQrScannedName] = useState('');
+
+  // ═══════════════════════════════════════════════════════════════
+  // PRIVACY HELPER
   // ═══════════════════════════════════════════════════════════════
   const maskPhone = (phone: string | undefined, ownerId: string): string => {
     if (!phone) return '—';
-    if (isAdmin) return phone; // Admins see everything
-    if (ownerId === currentUserId) return phone; // Users see their own phone
-    return '•••••••'; // Hide other users' phones
+    if (isAdmin) return phone;
+    if (ownerId === currentUserId) return phone;
+    return '•••••••';
   };
 
   // Filters
@@ -147,13 +181,30 @@ const Requests: React.FC = () => {
     }
   };
 
+  // ── Members helpers ──────────────────────────────────────────────────────
+  const fetchRoomMembers = async (roomId: string) => {
+    setMembersLoading(true);
+    try {
+      const res = await fetch(`${BACKEND}/api/rooms/${roomId}/members`);
+      const data = await res.json();
+      setRoomMembers(Array.isArray(data) ? data : []);
+    } catch { setRoomMembers([]); }
+    finally { setMembersLoading(false); }
+  };
+
   const openRoom = (room: Room) => {
     setSelectedRoom(room);
     setCarriedItems('');
     setPhoneNumber('');
     setShowDirection(false);
     setLightboxOpen(false);
+    setSlideIndex(0);
+    setLightboxIndex(0);
+    setShowRoomMembers(false);
+    setRoomMembers([]);
     setFingerprintSuccess(false);
+    setQrScanSuccess(false);
+    setQrScannedName('');
     setIsModalOpen(true);
   };
 
@@ -162,7 +213,49 @@ const Requests: React.FC = () => {
     setSelectedRoom(null);
     setShowDirection(false);
     setLightboxOpen(false);
+    setSlideIndex(0);
+    setLightboxIndex(0);
+    setShowRoomMembers(false);
+    setRoomMembers([]);
+    if (slideTimerRef.current) clearInterval(slideTimerRef.current);
     setFingerprintSuccess(false);
+    setQrScanSuccess(false);
+    setQrScannedName('');
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // QR SCANNER HANDLER
+  // ═══════════════════════════════════════════════════════════════════════
+  const handleQRScan = (result: QRScanResult) => {
+    setShowQRScanner(false);
+
+    // Auto-fill phone number if present in QR data
+    if (result.phone) {
+      setPhoneNumber(result.phone);
+    }
+
+    // If the QR has a userId, we can look up more details via API
+    // For now we auto-fill whatever the QR contains
+    if (result.userId) {
+      // Optionally fetch user details from backend to also fill phone if not in QR
+      fetch(`${BACKEND}/api/users/${result.userId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` },
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(user => {
+          if (user) {
+            if (user.phone && !result.phone) setPhoneNumber(user.phone);
+            if (user.fullName) setQrScannedName(user.fullName);
+          }
+        })
+        .catch(() => {/* ignore — QR data is still used */});
+    }
+
+    if (result.fullName) setQrScannedName(result.fullName);
+
+    setQrScanSuccess(true);
+    // Auto-dismiss the success banner after 4 seconds
+    setTimeout(() => setQrScanSuccess(false), 4000);
   };
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -191,28 +284,16 @@ const Requests: React.FC = () => {
     setFingerprintError('');
 
     try {
-      // Step 1: Get challenge from server
       const options = await authAPI.webauthnAuthStart(fingerprintEmail.trim());
-
-      // Step 2: Trigger browser's fingerprint prompt
       const credential = await startAuthentication(options);
-
-      // Step 3: Send credential to server for verification
       const result = await authAPI.webauthnAuthFinish(options.userId, credential);
 
       if (result.success && result.user) {
-        // Auto-fill user details
         setPhoneNumber(result.user.phone || '');
         setFingerprintSuccess(true);
-        
-        // Store user data in localStorage for session
         localStorage.setItem('currentUser', JSON.stringify(result.user));
         localStorage.setItem('authToken', result.token);
-
-        // Show success message
-        setTimeout(() => {
-          closeFingerprintModal();
-        }, 1500);
+        setTimeout(() => { closeFingerprintModal(); }, 1500);
       }
     } catch (err: any) {
       console.error('Fingerprint auth error:', err);
@@ -232,14 +313,19 @@ const Requests: React.FC = () => {
 
   const handleRequestKey = async (room: Room | null) => {
     if (!room || room.isPrivate || room.status !== 'available') return;
-    
-    const hasUnreturned = history.some(r => r.status === 'pending' || r.status === 'approved');
-    if (hasUnreturned) {
-      const u = history.find(r => r.status === 'pending' || r.status === 'approved');
-      alert(`You have an unreturned room key!\n\nRoom: ${u?.roomId?.name} (${u?.roomId?.code})\nRequested: ${formatDateTime(u?.requestedAt)}\n\nPlease return it first.`);
-      return;
+
+    const isPrivileged = isAdmin || isGuard;
+
+    // Only regular users are blocked from requesting while holding a key
+    if (!isPrivileged) {
+      const hasUnreturned = history.some(r => r.status === 'pending' || r.status === 'approved');
+      if (hasUnreturned) {
+        const u = history.find(r => r.status === 'pending' || r.status === 'approved');
+        alert(`You have an unreturned room key!\n\nRoom: ${u?.roomId?.name} (${u?.roomId?.code})\nRequested: ${formatDateTime(u?.requestedAt)}\n\nPlease return it first.`);
+        return;
+      }
     }
-    
+
     if (!carriedItems.trim()) {
       alert('Please list the items you will bring.');
       return;
@@ -248,22 +334,20 @@ const Requests: React.FC = () => {
       alert('Please provide a phone number.');
       return;
     }
-    
+
     try {
       setSubmitting(true);
       const cu = JSON.parse(localStorage.getItem('currentUser') || '{}');
-      const isAdmin = cu.role === 'admin';
       await requestsAPI.create({
         roomId: room._id,
         carriedItems: carriedItems.trim(),
         phone: phoneNumber.trim(),
         membership: cu.membership || 'None',
-        // If admin is making this request, flag it so the requester shows as "Admin (name)"
-        ...(isAdmin ? { isAdminRequest: true, adminName: cu.fullName || cu.name || 'Admin' } : {}),
+        ...(isPrivileged ? { isAdminRequest: true, adminName: cu.fullName || cu.name || (isGuard ? 'Guard' : 'Admin') } : {}),
       });
       await loadData();
       closeModal();
-      const label = isAdmin ? `Admin (${cu.fullName || cu.name || 'Admin'})` : (cu.fullName || cu.name || 'User');
+      const label = isPrivileged ? `${isGuard ? 'Guard' : 'Admin'} (${cu.fullName || cu.name || ''})` : (cu.fullName || cu.name || 'User');
       alert(`Request submitted by ${label} for ${room.name} (${room.code})\nStatus: Pending approval`);
     } catch (err: any) {
       alert('Failed to submit request: ' + err.message);
@@ -273,13 +357,20 @@ const Requests: React.FC = () => {
   };
 
   const handleSignOut = async (id: string) => {
-    if (!confirm('Request to sign out and return the room key?\n\nAn admin will need to approve your return.')) return;
+    const isPrivileged = isAdmin || isGuard;
+    const confirmMsg = isPrivileged
+      ? 'Confirm key return?\n\nThis will mark the key as returned and free the room immediately.'
+      : 'Request to return the room key?\n\nAn admin will need to approve your return.';
+    if (!confirm(confirmMsg)) return;
     try {
       await requestsAPI.returnRequest(id);
       await loadData();
-      alert('Sign-out request submitted!\n\nWaiting for admin approval to complete the return.');
+      const successMsg = isPrivileged
+        ? 'Key returned successfully! The room is now available.'
+        : 'Return request submitted!\n\nWaiting for admin approval to complete the return.';
+      alert(successMsg);
     } catch (err: any) {
-      alert('Failed to request sign-out: ' + err.message);
+      alert('Failed to return key: ' + err.message);
     }
   };
 
@@ -324,21 +415,80 @@ const Requests: React.FC = () => {
     setFilterEquipment('');
   };
 
+  // ── Hooks that depend on selectedRoom — must stay ABOVE any early return ──
+  const dirImages: string[] = useMemo(() => {
+    if (!selectedRoom) return [];
+    const imgs: string[] = [];
+    if (selectedRoom.directionImages && selectedRoom.directionImages.length > 0) {
+      selectedRoom.directionImages.forEach(p => { if (p) imgs.push(toFullUrl(p)); });
+    } else if (selectedRoom.directionImage) {
+      imgs.push(toFullUrl(selectedRoom.directionImage));
+    }
+    return imgs;
+  }, [selectedRoom]);
+
+  useEffect(() => {
+    if (showDirection && dirImages.length > 1) {
+      slideTimerRef.current = setInterval(() => {
+        setSlideIndex(prev => (prev + 1) % dirImages.length);
+      }, 10000);
+    } else {
+      if (slideTimerRef.current) clearInterval(slideTimerRef.current);
+    }
+    return () => { if (slideTimerRef.current) clearInterval(slideTimerRef.current); };
+  }, [showDirection, dirImages.length]);
+
+  // HOOKS MOVED ABOVE EARLY RETURN — see below
+  // non-hook computations (safe after return):
+  // unreturnedRequests, hasUnreturnedRequest, dirImgUrl, goSlide
+
   if (loading) return <div style={{ padding: '2rem' }}>Loading rooms...</div>;
 
   const unreturnedRequests = history.filter(r => r.status === 'pending' || r.status === 'approved');
-  const hasUnreturnedRequest = unreturnedRequests.length > 0;
-  const dirImgUrl = selectedRoom?.directionImage ? toFullUrl(selectedRoom.directionImage) : '';
+  // Admin and guard are not blocked by unreturned keys
+  const hasUnreturnedRequest = (isAdmin || isGuard) ? false : unreturnedRequests.length > 0;
+  const dirImgUrl = dirImages[slideIndex] ?? '';
+
+  const goSlide = (delta: number) => {
+    if (slideTimerRef.current) clearInterval(slideTimerRef.current);
+    setDragOffset(0);
+    setSlideIndex(prev => (prev + delta + dirImages.length) % dirImages.length);
+    // restart 10-second timer
+    if (dirImages.length > 1) {
+      slideTimerRef.current = setInterval(() => {
+        setSlideIndex(prev => (prev + 1) % dirImages.length);
+      }, 10000);
+    }
+  };
 
   return (
     <>
-      {/* Add pulse animation for pending approval buttons */}
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.7; }
         }
+        @keyframes slide-progress {
+          from { width: 0%; }
+          to   { width: 100%; }
+        }
+        .modal::-webkit-scrollbar { width: 4px; }
+        .modal::-webkit-scrollbar-track { background: transparent; }
+        .modal::-webkit-scrollbar-thumb { background: rgba(99,102,241,.25); border-radius: 4px; }
+        .modal::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,.45); }
+        .modal-overlay { display: flex; align-items: center; justify-content: center; padding: 16px 20px; }
+        .modal { width: 100%; }
       `}</style>
+
+      {/* ── QR Scanner (fullscreen overlay) ── */}
+      {showQRScanner && (
+        <QRScanner
+          onScan={handleQRScan}
+          onClose={() => setShowQRScanner(false)}
+          title="Scan Member ID Card"
+          subtitle="Auto-fills phone number from the QR code"
+        />
+      )}
 
       <h1 className="section-title">Request Room Key</h1>
 
@@ -363,9 +513,6 @@ const Requests: React.FC = () => {
                 <strong>{req.roomId?.name}</strong> ({req.roomId?.code}) • Requested: {formatDateTime(req.requestedAt)} • Status: <strong>{req.status === 'pending' ? 'Pending' : 'Approved'}</strong>
               </p>
             ))}
-            <p style={{ margin: '12px 0 0', color: '#92400e', fontSize: 14, fontWeight: 500 }}>
-              
-            </p>
           </div>
         </div>
       )}
@@ -489,7 +636,7 @@ const Requests: React.FC = () => {
       {/* ── Room detail modal ── */}
       {isModalOpen && selectedRoom && (
         <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxHeight: '92vh', overflowY: 'auto', width: '100%', maxWidth: 780, borderRadius: 24, padding: '32px', scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,102,241,.25) transparent' }}>
             <h2 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
               <span>{selectedRoom.name}</span>
               <Badge variant={getBadgeVariant(selectedRoom.status)}>
@@ -530,6 +677,21 @@ const Requests: React.FC = () => {
               </div>
             )}
 
+            {/* QR Scan success banner */}
+            {qrScanSuccess && (
+              <div style={{
+                background: '#d1fae5', border: '2px solid #10b981', color: '#065f46',
+                padding: 12, borderRadius: 8, marginBottom: 16, fontWeight: 500,
+                display: 'flex', alignItems: 'center', gap: 8
+              }}>
+                <QrCode size={18} color="#10b981" />
+                <span>
+                  QR code scanned successfully
+                  {qrScannedName ? ` — ${qrScannedName}` : ''}! Phone number auto-filled.
+                </span>
+              </div>
+            )}
+
             {/* Fingerprint success banner */}
             {fingerprintSuccess && (
               <div style={{
@@ -538,7 +700,9 @@ const Requests: React.FC = () => {
                 display: 'flex', alignItems: 'center', gap: 8
               }}>
                 <Check size={18} />
-                <span style={{ display:"flex", alignItems:"center", gap:6 }}><Check size={14} /> Fingerprint verified — details auto-filled!</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Check size={14} /> Fingerprint verified — details auto-filled!
+                </span>
               </div>
             )}
 
@@ -556,41 +720,184 @@ const Requests: React.FC = () => {
                 {selectedRoom.direction || '—'}
               </p>
 
-              {dirImgUrl && (
+              {dirImages.length > 0 && (
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowDirection(prev => !prev);
-                  }}
+                  onClick={(e) => { e.stopPropagation(); setShowDirection(prev => !prev); setSlideIndex(0); }}
                   style={{
                     marginTop: 12, display: 'flex', alignItems: 'center', gap: 8,
                     padding: '9px 18px', borderRadius: 9, border: 'none',
                     background: showDirection ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : 'linear-gradient(135deg,#3b82f6,#4f46e5)',
                     color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
                     boxShadow: '0 3px 10px rgba(79,70,229,0.35)', transition: 'all 0.2s ease',
-                    letterSpacing: '0.02em'
                   }}
                 >
                   <Navigation size={16} />
-                  {showDirection ? '▲ Hide Direction' : '▼ Press to View the Direction'}
+                  {showDirection ? '▲ Hide Direction' : `▼ View Direction${dirImages.length > 1 ? ` (${dirImages.length} nodes)` : ''}`}
                 </button>
               )}
 
-              {showDirection && dirImgUrl && (
+              {showDirection && dirImages.length > 0 && (
                 <div style={{ marginTop: 12 }}>
-                  <img
-                    src={dirImgUrl}
-                    alt={`Route to ${selectedRoom.name}`}
+                  {/* ── Slideshow container ── */}
+                  <div
                     style={{
-                      width: '100%', maxHeight: 340, objectFit: 'contain', borderRadius: 10,
-                      border: '1px solid var(--glass-border)', background: '#f1f5f9',
-                      display: 'block', cursor: 'zoom-in'
+                      position: 'relative', userSelect: 'none', overflow: 'hidden', borderRadius: 10,
+                      touchAction: dirImages.length > 1 ? 'pan-y' : 'auto',
                     }}
-                    onClick={(e) => { e.stopPropagation(); setLightboxOpen(true); }}
-                  />
-                  <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--muted-text)', textAlign: 'center' }}>
-                    Follow the route above to reach <strong>{selectedRoom.name}</strong> · Click image to enlarge
+                    /* ── Touch swipe ── */
+                    onTouchStart={(e) => {
+                      if (dirImages.length <= 1) return;
+                      dragStartX.current = e.touches[0].clientX;
+                      dragStartY.current = e.touches[0].clientY;
+                      isDragging.current = false;
+                    }}
+                    onTouchMove={(e) => {
+                      if (dragStartX.current === null || dragStartY.current === null) return;
+                      const dx = e.touches[0].clientX - dragStartX.current;
+                      const dy = e.touches[0].clientY - dragStartY.current;
+                      // Only hijack horizontal swipes (ignore vertical scroll)
+                      if (!isDragging.current && Math.abs(dy) > Math.abs(dx)) {
+                        dragStartX.current = null; return;
+                      }
+                      isDragging.current = true;
+                      setDragOffset(dx);
+                    }}
+                    onTouchEnd={(e) => {
+                      if (dragStartX.current === null || !isDragging.current) {
+                        dragStartX.current = null; setDragOffset(0); return;
+                      }
+                      const dx = e.changedTouches[0].clientX - dragStartX.current;
+                      setDragOffset(0);
+                      dragStartX.current = null;
+                      isDragging.current = false;
+                      if (Math.abs(dx) > 50) goSlide(dx > 0 ? -1 : 1);
+                    }}
+                    /* ── Mouse drag (desktop) ── */
+                    onMouseDown={(e) => {
+                      if (dirImages.length <= 1) return;
+                      dragStartX.current = e.clientX;
+                      isDragging.current = false;
+                    }}
+                    onMouseMove={(e) => {
+                      if (dragStartX.current === null) return;
+                      const dx = e.clientX - dragStartX.current;
+                      if (!isDragging.current && Math.abs(dx) > 5) isDragging.current = true;
+                      if (isDragging.current) setDragOffset(dx);
+                    }}
+                    onMouseUp={(e) => {
+                      if (dragStartX.current === null) return;
+                      const dx = e.clientX - dragStartX.current;
+                      const wasDrag = isDragging.current;
+                      setDragOffset(0);
+                      dragStartX.current = null;
+                      isDragging.current = false;
+                      if (wasDrag && Math.abs(dx) > 50) goSlide(dx > 0 ? -1 : 1);
+                    }}
+                    onMouseLeave={() => {
+                      if (dragStartX.current !== null) {
+                        setDragOffset(0); dragStartX.current = null; isDragging.current = false;
+                      }
+                    }}
+                  >
+                    {/* Step label */}
+                    {dirImages.length > 1 && (
+                      <div style={{
+                        position: 'absolute', top: 8, left: 8, zIndex: 3,
+                        background: 'rgba(0,0,0,0.55)', color: '#fff',
+                        borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 700,
+                        backdropFilter: 'blur(4px)', pointerEvents: 'none',
+                      }}>
+                        Step {slideIndex + 1} / {dirImages.length}
+                      </div>
+                    )}
+
+                    {/* Auto-timer progress bar */}
+                    {dirImages.length > 1 && (
+                      <div style={{
+                        position: 'absolute', bottom: 0, left: 0, height: 3, zIndex: 3,
+                        background: 'rgba(79,70,229,0.7)', borderRadius: '0 2px 2px 0',
+                        pointerEvents: 'none',
+                        animation: 'slide-progress 10s linear infinite',
+                      }} key={slideIndex} />
+                    )}
+
+                    {/* Main image — slides with drag offset */}
+                    <img
+                      src={dirImages[slideIndex]}
+                      alt={`Direction step ${slideIndex + 1} to ${selectedRoom!.name}`}
+                      draggable={false}
+                      style={{
+                        width: '100%', maxHeight: 340, objectFit: 'contain',
+                        border: '1px solid var(--glass-border)', background: '#f1f5f9',
+                        display: 'block',
+                        cursor: dirImages.length > 1 ? (dragOffset !== 0 ? 'grabbing' : 'grab') : 'zoom-in',
+                        transform: `translateX(${dragOffset}px)`,
+                        transition: dragOffset === 0 ? 'transform 0.3s ease' : 'none',
+                        borderRadius: 10,
+                        pointerEvents: isDragging.current ? 'none' : 'auto',
+                      }}
+                      onClick={(e) => {
+                        if (Math.abs(dragOffset) < 5) {
+                          e.stopPropagation(); setLightboxIndex(slideIndex); setLightboxOpen(true);
+                        }
+                      }}
+                    />
+
+                    {/* ‹ › Arrow buttons */}
+                    {dirImages.length > 1 && (
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); goSlide(-1); }}
+                          style={{
+                            position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)',
+                            width: 36, height: 36, borderRadius: '50%', border: 'none',
+                            background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 20, fontWeight: 700,
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            zIndex: 4, backdropFilter: 'blur(4px)', lineHeight: 1,
+                            opacity: slideIndex === 0 ? 0.4 : 1, transition: 'opacity 0.2s',
+                          }}
+                          aria-label="Previous step"
+                        >‹</button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); goSlide(1); }}
+                          style={{
+                            position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                            width: 36, height: 36, borderRadius: '50%', border: 'none',
+                            background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 20, fontWeight: 700,
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            zIndex: 4, backdropFilter: 'blur(4px)', lineHeight: 1,
+                            opacity: slideIndex === dirImages.length - 1 ? 0.4 : 1, transition: 'opacity 0.2s',
+                          }}
+                          aria-label="Next step"
+                        >›</button>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Dot indicators */}
+                  {dirImages.length > 1 && (
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 10 }}>
+                      {dirImages.map((_, i) => (
+                        <button
+                          key={i}
+                          onClick={(e) => { e.stopPropagation(); goSlide(i - slideIndex); }}
+                          aria-label={`Go to step ${i + 1}`}
+                          style={{
+                            width: i === slideIndex ? 24 : 8, height: 8, borderRadius: 4, border: 'none',
+                            background: i === slideIndex ? '#4f46e5' : '#c7d2fe',
+                            cursor: 'pointer', padding: 0, transition: 'all 0.3s ease',
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Caption */}
+                  <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--muted-text)', textAlign: 'center' }}>
+                    {dirImages.length > 1
+                      ? `Swipe left/right or use arrows · Auto-advances every 10 s · Tap to enlarge`
+                      : `Follow the route to reach ${selectedRoom!.name} · Tap to enlarge`}
                   </p>
                 </div>
               )}
@@ -616,6 +923,37 @@ const Requests: React.FC = () => {
               </div>
             )}
 
+            {/* ── QR Scan hint strip ── */}
+            {!selectedRoom.isPrivate && !hasUnreturnedRequest && (
+              <div style={{
+                marginTop: 16, padding: '10px 14px',
+                background: 'linear-gradient(135deg, #ecfdf5, #d1fae5)',
+                border: '1px solid #6ee7b7', borderRadius: 10,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <QrCode size={20} color="#059669" />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#065f46' }}>Have an ID card?</div>
+                    <div style={{ fontSize: 12, color: '#047857' }}>Scan its QR code to auto-fill your details below</div>
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowQRScanner(true); }}
+                  style={{
+                    padding: '8px 14px', borderRadius: 8, border: 'none', flexShrink: 0,
+                    background: 'linear-gradient(135deg, #059669, #047857)',
+                    color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    boxShadow: '0 2px 8px rgba(5,150,105,0.3)',
+                  }}
+                >
+                  <QrCode size={14} />
+                  Scan QR
+                </button>
+              </div>
+            )}
+
             {/* Items */}
             <div style={{ marginTop: 14 }}>
               <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
@@ -636,18 +974,106 @@ const Requests: React.FC = () => {
               <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
                 Phone Number (required)
               </label>
-              <input
-                type="tel"
-                value={phoneNumber}
-                onChange={e => setPhoneNumber(e.target.value)}
-                placeholder="E.g. +255 123 456 789"
-                style={{ width: '100%', padding: 8, borderRadius: 8, border: '1px solid rgba(15,23,42,0.08)' }}
-                disabled={submitting || selectedRoom.isPrivate || hasUnreturnedRequest}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={e => setPhoneNumber(e.target.value)}
+                  placeholder="E.g. +255 123 456 789"
+                  style={{
+                    width: '100%', padding: 8, paddingRight: qrScanSuccess ? 36 : 8,
+                    borderRadius: 8, border: `1px solid ${qrScanSuccess ? '#10b981' : 'rgba(15,23,42,0.08)'}`,
+                    background: qrScanSuccess ? '#f0fdf4' : 'inherit', boxSizing: 'border-box',
+                  }}
+                  disabled={submitting || selectedRoom.isPrivate || hasUnreturnedRequest}
+                />
+                {qrScanSuccess && (
+                  <QrCode
+                    size={16}
+                    color="#10b981"
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)' }}
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* ── View Members Panel ── */}
+            <div style={{ marginTop: 18, borderTop: '1px solid var(--glass-border)', paddingTop: 14 }}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!showRoomMembers) { setShowRoomMembers(true); fetchRoomMembers(selectedRoom._id); }
+                  else setShowRoomMembers(false);
+                }}
+                style={{
+                  width: '100%', padding: '10px 16px', borderRadius: 10, border: 'none',
+                  background: showRoomMembers ? '#f1f5f9' : 'linear-gradient(135deg,#6366f1,#4338ca)',
+                  color: showRoomMembers ? '#64748b' : '#fff',
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  transition: 'all 0.2s',
+                }}
+              >
+                <Users size={15} />
+                {showRoomMembers ? 'Hide Members' : `View Room Members${selectedRoom.members && selectedRoom.members.length > 0 ? ` (${selectedRoom.members.length})` : ''}`}
+              </button>
+
+              {showRoomMembers && (
+                <div style={{ marginTop: 12 }}>
+                  {membersLoading ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {[1, 2, 3].map(i => (
+                        <div key={i} style={{ height: 52, borderRadius: 10, background: '#f1f5f9', animation: 'pulse 1.5s ease infinite' }}/>
+                      ))}
+                    </div>
+                  ) : roomMembers.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--muted-text)', fontSize: 13, background: '#f8fafc', borderRadius: 10, border: '1px dashed var(--glass-border)' }}>
+                      No members registered for this room yet.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,102,241,.2) transparent' }}>
+                      {roomMembers.map((m, idx) => (
+                        <div key={m._id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f8fafc', borderRadius: 10, padding: '10px 12px', border: '1px solid var(--glass-border)' }}>
+                          <div style={{
+                            width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
+                            background: `linear-gradient(135deg,${['#6366f1','#8b5cf6','#06b6d4','#10b981','#f59e0b'][idx%5]},${['#4338ca','#7c3aed','#0891b2','#059669','#d97706'][idx%5]})`,
+                            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15,
+                          }}>
+                            {m.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>{m.name}</div>
+                            <div style={{ fontSize: 11, color: 'var(--muted-text)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {[m.role, m.phone, m.email].filter(Boolean).join(' · ') || 'No details'}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20, flexWrap: 'wrap' }}>
-              {/* Use Fingerprint button */}
+              {/* Scan QR button */}
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowQRScanner(true); }}
+                disabled={submitting || selectedRoom.isPrivate || hasUnreturnedRequest}
+                style={{
+                  padding: '10px 16px', borderRadius: 8, border: '1px solid #059669',
+                  background: 'linear-gradient(135deg, #059669, #047857)',
+                  color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  opacity: (submitting || selectedRoom.isPrivate || hasUnreturnedRequest) ? 0.5 : 1,
+                  transition: 'all 0.2s'
+                }}
+              >
+                <QrCode size={16} />
+                Scan ID Card
+              </button>
+
+              {/* Fingerprint button */}
               <button
                 onClick={(e) => { e.stopPropagation(); handleFingerprintAuth(); }}
                 disabled={submitting || selectedRoom.isPrivate || hasUnreturnedRequest}
@@ -665,7 +1091,7 @@ const Requests: React.FC = () => {
               </button>
 
               <button className="cancel-btn" onClick={closeModal} disabled={submitting}>Close</button>
-              
+
               <button
                 className="save-btn"
                 onClick={(e) => { e.stopPropagation(); handleRequestKey(selectedRoom); }}
@@ -685,7 +1111,7 @@ const Requests: React.FC = () => {
       {/* ── Fingerprint Authentication Modal ── */}
       {showFingerprintModal && (
         <div className="modal-overlay" onClick={closeFingerprintModal}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '420px' }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '460px', scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,102,241,.25) transparent' }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{
                 width: 64, height: 64, borderRadius: '50%', background: '#ede9fe',
@@ -710,7 +1136,11 @@ const Requests: React.FC = () => {
                 <div style={{
                   padding: 12, background: '#d1fae5', color: '#065f46',
                   borderRadius: 8, marginBottom: 16, fontSize: 14, fontWeight: 500
-                }}><span style={{ display:"flex", alignItems:"center", gap:6 }}><Check size={14} /> Fingerprint verified successfully!</span></div>
+                }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Check size={14} /> Fingerprint verified successfully!
+                  </span>
+                </div>
               )}
 
               <label style={{ display: 'block', textAlign: 'left', fontWeight: 600, marginBottom: 6 }}>
@@ -740,10 +1170,7 @@ const Requests: React.FC = () => {
                   className="save-btn"
                   onClick={authenticateWithFingerprint}
                   disabled={fingerprintLoading || fingerprintSuccess}
-                  style={{
-                    flex: 1,
-                    opacity: (fingerprintLoading || fingerprintSuccess) ? 0.6 : 1
-                  }}
+                  style={{ flex: 1, opacity: (fingerprintLoading || fingerprintSuccess) ? 0.6 : 1 }}
                 >
                   {fingerprintLoading ? 'Authenticating...' : 'Authenticate'}
                 </button>
@@ -754,14 +1181,15 @@ const Requests: React.FC = () => {
       )}
 
       {/* ── Full-screen lightbox ── */}
-      {lightboxOpen && dirImgUrl && (
+      {lightboxOpen && dirImages.length > 0 && (
         <div
           onClick={() => setLightboxOpen(false)}
           style={{
-            position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.88)',
+            position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.92)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
           }}
         >
+          {/* Close */}
           <button
             onClick={() => setLightboxOpen(false)}
             style={{
@@ -773,12 +1201,65 @@ const Requests: React.FC = () => {
           >
             <X size={20} />
           </button>
+
+          {/* Step label */}
+          {dirImages.length > 1 && (
+            <div style={{
+              position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
+              background: 'rgba(255,255,255,0.15)', color: '#fff', borderRadius: 20,
+              padding: '4px 14px', fontSize: 13, fontWeight: 700, zIndex: 10000,
+            }}>
+              Step {lightboxIndex + 1} / {dirImages.length}
+            </div>
+          )}
+
           <img
-            src={dirImgUrl}
-            alt="Direction route (full screen)"
-            style={{ maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 12 }}
+            src={dirImages[lightboxIndex]}
+            alt={`Direction step ${lightboxIndex + 1} (full screen)`}
+            style={{ maxWidth: '95vw', maxHeight: '85vh', objectFit: 'contain', borderRadius: 12 }}
             onClick={e => e.stopPropagation()}
           />
+
+          {/* Prev/Next in lightbox */}
+          {dirImages.length > 1 && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); setLightboxIndex(prev => (prev - 1 + dirImages.length) % dirImages.length); }}
+                style={{
+                  position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
+                  width: 44, height: 44, borderRadius: '50%', border: 'none',
+                  background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: 22, fontWeight: 700,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000,
+                }}
+              >‹</button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setLightboxIndex(prev => (prev + 1) % dirImages.length); }}
+                style={{
+                  position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
+                  width: 44, height: 44, borderRadius: '50%', border: 'none',
+                  background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: 22, fontWeight: 700,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000,
+                }}
+              >›</button>
+            </>
+          )}
+
+          {/* Dots in lightbox */}
+          {dirImages.length > 1 && (
+            <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 8 }}>
+              {dirImages.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={(e) => { e.stopPropagation(); setLightboxIndex(i); }}
+                  style={{
+                    width: i === lightboxIndex ? 24 : 8, height: 8, borderRadius: 4,
+                    border: 'none', background: i === lightboxIndex ? '#fff' : 'rgba(255,255,255,0.4)',
+                    cursor: 'pointer', padding: 0, transition: 'all 0.3s ease',
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -810,10 +1291,10 @@ const Requests: React.FC = () => {
                   <tr key={req._id}>
                     <td data-label="Room">{req.roomId?.name} ({req.roomId?.code || '—'})</td>
                     <td data-label="Requester">
-                      <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap', fontWeight:500 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontWeight: 500 }}>
                         {req.userId?.fullName || 'Unknown'}
                         {req.isAdminRequest && req.requestedBy && (
-                          <span style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#ede9fe', color:'#5b21b6', borderRadius:6, padding:'2px 7px', fontSize:10, fontWeight:700 }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#ede9fe', color: '#5b21b6', borderRadius: 6, padding: '2px 7px', fontSize: 10, fontWeight: 700 }}>
                             <Lock size={9} />
                             Admin ({req.requestedBy.fullName})
                           </span>
@@ -833,110 +1314,43 @@ const Requests: React.FC = () => {
                     <td data-label="Duration">{computeDuration(req.requestedAt, req.returnedAt) || '—'}</td>
                     <td data-label="Returned">{formatDateTime(req.returnedAt) || '—'}</td>
                     <td data-label="Action">
-                      {/* BLUE: Fully signed out (returned and approved) */}
-                      {req.status === 'returned' && req.returnApprovalStatus === 'approved' && (
-                        <button
-                          style={{
-                            padding: '6px 14px',
-                            borderRadius: '6px',
-                            border: 'none',
-                            background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-                            color: '#fff',
-                            fontSize: '13px',
-                            fontWeight: 600,
-                            cursor: 'default',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            opacity: 0.8
-                          }}
-                          disabled
-                        >
+                      {/* BLUE: Returned */}
+                      {req.status === 'returned' && (
+                        <button style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'default', display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.8 }} disabled>
                           <CheckCircle size={14} />
-                          Signed Out
+                          Returned
                         </button>
                       )}
-                      
-                      {/* ORANGE/GREEN: Waiting for admin approval (pulsing) */}
-                      {req.returnApprovalStatus === 'pending_approval' && (
-                        <button
-                          style={{
-                            padding: '6px 14px',
-                            borderRadius: '6px',
-                            border: 'none',
-                            background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                            color: '#fff',
-                            fontSize: '13px',
-                            fontWeight: 600,
-                            cursor: 'default',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            animation: 'pulse 2s ease-in-out infinite'
-                          }}
-                          disabled
-                        >
+
+                      {/* ORANGE: Pending approval — only shown to regular users waiting for admin */}
+                      {req.returnApprovalStatus === 'pending_approval' && req.status !== 'returned' && (
+                        <button style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'default', display: 'flex', alignItems: 'center', gap: '6px', animation: 'pulse 2s ease-in-out infinite' }} disabled>
                           <Clock size={14} />
                           Pending Approval
                         </button>
                       )}
-                      
-                      {/* REJECTED: Show retry button */}
+
+                      {/* REJECTED: Retry — regular user whose return was rejected */}
                       {req.returnApprovalStatus === 'rejected' && (req.status === 'pending' || req.status === 'approved') && (
-                        <button
-                          onClick={() => handleSignOut(req._id)}
-                          style={{
-                            padding: '6px 14px',
-                            borderRadius: '6px',
-                            border: '1px solid #dc2626',
-                            background: '#fef2f2',
-                            color: '#dc2626',
-                            fontSize: '13px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px'
-                          }}
-                        >
+                        <button onClick={() => handleSignOut(req._id)} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid #dc2626', background: '#fef2f2', color: '#dc2626', fontSize: '13px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <LogOut size={14} />
-                          Retry Sign Out
+                          Retry Return
                         </button>
                       )}
-                      
-                      {/* RED: User needs to sign out (initial state) */}
-                      {(req.status === 'pending' || req.status === 'approved') && 
-                       (req.returnApprovalStatus === 'none' || !req.returnApprovalStatus) && (
-                        <button
-                          onClick={() => handleSignOut(req._id)}
-                          style={{
-                            padding: '6px 14px',
-                            borderRadius: '6px',
-                            border: 'none',
-                            background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-                            color: '#fff',
-                            fontSize: '13px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            boxShadow: '0 2px 6px rgba(239,68,68,0.3)',
-                            transition: 'all 0.2s'
-                          }}
-                          onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => {
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(239,68,68,0.4)';
-                          }}
-                          onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => {
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = '0 2px 6px rgba(239,68,68,0.3)';
-                          }}
-                        >
-                          <LogOut size={14} />
-                          Sign Out
-                        </button>
-                      )}
+
+                      {/* RED: Return Key — active request with no pending return yet */}
+                      {(req.status === 'pending' || req.status === 'approved') &&
+                        (req.returnApprovalStatus === 'none' || !req.returnApprovalStatus) && (
+                          <button
+                            onClick={() => handleSignOut(req._id)}
+                            style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 6px rgba(239,68,68,0.3)', transition: 'all 0.2s' }}
+                            onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(239,68,68,0.4)'; }}
+                            onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 6px rgba(239,68,68,0.3)'; }}
+                          >
+                            <LogOut size={14} />
+                            Return Key
+                          </button>
+                        )}
                     </td>
                   </tr>
                 ))
@@ -946,54 +1360,20 @@ const Requests: React.FC = () => {
         </div>
 
         {history.length > HISTORY_PER_PAGE && (
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            marginTop: 16, padding: '0 4px'
-          }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, padding: '0 4px' }}>
             <span style={{ fontSize: 14, color: 'var(--muted-text)' }}>
               Showing {(historyPage - 1) * HISTORY_PER_PAGE + 1}–{Math.min(historyPage * HISTORY_PER_PAGE, history.length)} of {history.length} requests
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button
-                onClick={() => setHistoryPage(p => p - 1)}
-                disabled={historyPage === 1}
-                style={{
-                  padding: '7px 16px', borderRadius: 8, border: '1px solid var(--glass-border)',
-                  background: historyPage === 1 ? 'var(--gray-light)' : 'var(--white-glass)',
-                  color: historyPage === 1 ? 'var(--muted-text)' : 'var(--soft-blue-dark)',
-                  fontWeight: 500, fontSize: 14,
-                  cursor: historyPage === 1 ? 'not-allowed' : 'pointer',
-                  opacity: historyPage === 1 ? 0.5 : 1
-                }}
-              >
+              <button onClick={() => setHistoryPage(p => p - 1)} disabled={historyPage === 1} style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid var(--glass-border)', background: historyPage === 1 ? 'var(--gray-light)' : 'var(--white-glass)', color: historyPage === 1 ? 'var(--muted-text)' : 'var(--soft-blue-dark)', fontWeight: 500, fontSize: 14, cursor: historyPage === 1 ? 'not-allowed' : 'pointer', opacity: historyPage === 1 ? 0.5 : 1 }}>
                 &larr; Previous
               </button>
               {Array.from({ length: Math.ceil(history.length / HISTORY_PER_PAGE) }, (_, i) => i + 1).map(pg => (
-                <button
-                  key={pg}
-                  onClick={() => setHistoryPage(pg)}
-                  style={{
-                    width: 34, height: 34, borderRadius: 8, border: '1px solid var(--glass-border)',
-                    background: pg === historyPage ? 'var(--soft-blue)' : 'var(--white-glass)',
-                    color: pg === historyPage ? 'white' : 'var(--soft-blue-dark)',
-                    fontWeight: pg === historyPage ? 700 : 500, fontSize: 14, cursor: 'pointer'
-                  }}
-                >
+                <button key={pg} onClick={() => setHistoryPage(pg)} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid var(--glass-border)', background: pg === historyPage ? 'var(--soft-blue)' : 'var(--white-glass)', color: pg === historyPage ? 'white' : 'var(--soft-blue-dark)', fontWeight: pg === historyPage ? 700 : 500, fontSize: 14, cursor: 'pointer' }}>
                   {pg}
                 </button>
               ))}
-              <button
-                onClick={() => setHistoryPage(p => p + 1)}
-                disabled={historyPage === Math.ceil(history.length / HISTORY_PER_PAGE)}
-                style={{
-                  padding: '7px 16px', borderRadius: 8, border: '1px solid var(--glass-border)',
-                  background: historyPage === Math.ceil(history.length / HISTORY_PER_PAGE) ? 'var(--gray-light)' : 'var(--white-glass)',
-                  color: historyPage === Math.ceil(history.length / HISTORY_PER_PAGE) ? 'var(--muted-text)' : 'var(--soft-blue-dark)',
-                  fontWeight: 500, fontSize: 14,
-                  cursor: historyPage === Math.ceil(history.length / HISTORY_PER_PAGE) ? 'not-allowed' : 'pointer',
-                  opacity: historyPage === Math.ceil(history.length / HISTORY_PER_PAGE) ? 0.5 : 1
-                }}
-              >
+              <button onClick={() => setHistoryPage(p => p + 1)} disabled={historyPage === Math.ceil(history.length / HISTORY_PER_PAGE)} style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid var(--glass-border)', background: historyPage === Math.ceil(history.length / HISTORY_PER_PAGE) ? 'var(--gray-light)' : 'var(--white-glass)', color: historyPage === Math.ceil(history.length / HISTORY_PER_PAGE) ? 'var(--muted-text)' : 'var(--soft-blue-dark)', fontWeight: 500, fontSize: 14, cursor: historyPage === Math.ceil(history.length / HISTORY_PER_PAGE) ? 'not-allowed' : 'pointer', opacity: historyPage === Math.ceil(history.length / HISTORY_PER_PAGE) ? 0.5 : 1 }}>
                 Next &rarr;
               </button>
             </div>

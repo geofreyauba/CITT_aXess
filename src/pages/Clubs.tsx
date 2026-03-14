@@ -35,7 +35,7 @@ Our signature events include a semester-long hackathon where teams compete to so
 
 Members also collaborate on live app projects that get deployed and used by students. Whether you're a complete beginner or an advanced developer, there's a place for you here. We believe in learning by building — come join us and ship something real.`,
     color: '#3b82f6',
-    gradient: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+    gradient: '#3b82f6',
     meetingDay: 'Every Tuesday, 4:00 PM',
     meetingLocation: 'Computer Lab B, Ground Floor',
     memberCount: '120+ members',
@@ -51,7 +51,7 @@ We maintain an active mentor network of successful alumni entrepreneurs and loca
 
 Whether you have a fully formed idea or just a spark of curiosity, our community will help you test, validate, and launch. Several alumni have gone on to run funded startups after starting right here in our club.`,
     color: '#f59e0b',
-    gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+    gradient: '#f59e0b',
     meetingDay: 'Every Wednesday, 5:00 PM',
     meetingLocation: 'Innovation Hub, First Floor',
     memberCount: '85+ members',
@@ -67,7 +67,7 @@ Our education arm runs climate awareness workshops, documentary screenings, and 
 
 We believe real change starts locally. Our members have successfully lobbied for solar panels on two campus buildings and introduced biodegradable packaging in the campus cafeteria. Join us to be part of tangible, measurable environmental impact.`,
     color: '#10b981',
-    gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+    gradient: '#10b981',
     meetingDay: 'Every Thursday, 3:30 PM',
     meetingLocation: 'Outdoor Amphitheater / Room 105',
     memberCount: '70+ members',
@@ -83,7 +83,7 @@ Members participate in inter-university debate tournaments, Toastmasters-style s
 
 Whether you want to overcome stage fright, sharpen your critical thinking, or win a national debate championship, we have the coaching and community to help you get there. Our alumni have gone on to excel in law, politics, journalism, and corporate leadership.`,
     color: '#8b5cf6',
-    gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+    gradient: '#8b5cf6',
     meetingDay: 'Every Monday & Friday, 4:00 PM',
     meetingLocation: 'Lecture Hall 3, Second Floor',
     memberCount: '55+ members',
@@ -99,7 +99,7 @@ Our film division produces original short films, documentaries, and music videos
 
 We also collaborate with other clubs to document their events, giving our members real-world portfolio experience. Every semester we submit entries to regional and national student film festivals. Come in with any skill level — we'll help you develop your creative eye and technical craft.`,
     color: '#ec4899',
-    gradient: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+    gradient: '#ec4899',
     meetingDay: 'Every Saturday, 10:00 AM',
     meetingLocation: 'Media Lab, Ground Floor',
     memberCount: '60+ members',
@@ -115,7 +115,7 @@ Our activities include weekly band and choir rehearsals, biannual major drama pr
 
 We work with professional coaches to help members advance technically — whether in vocal training, instrument mastery, stage direction, or choreography. Members have performed at national youth festivals and university competitions. No audition required to join; all levels are welcome.`,
     color: '#f97316',
-    gradient: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+    gradient: '#f97316',
     meetingDay: 'Tuesday & Thursday, 5:30 PM',
     meetingLocation: 'Auditorium / Music Room 2',
     memberCount: '95+ members',
@@ -131,7 +131,7 @@ Beyond playing, we also have an active game development arm where members learn 
 
 Our streaming division teaches members how to set up professional streams, grow audiences, and monetize gaming content. Whether you're a hardcore competitive player or a casual fan who loves gaming culture, our community is welcoming and inclusive.`,
     color: '#06b6d4',
-    gradient: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)',
+    gradient: '#06b6d4',
     meetingDay: 'Every Friday & Sunday, 3:00 PM',
     meetingLocation: 'Computer Lab A, Basement',
     memberCount: '110+ members',
@@ -147,7 +147,7 @@ Our creative writing workshops give members structured guidance on short stories
 
 We also host author talks (in-person and virtual), poetry slam competitions, and participate in national literary festivals. If you love stories in any form — reading, writing, or listening — you'll feel right at home here.`,
     color: '#6366f1',
-    gradient: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+    gradient: '#1e3a5f',
     meetingDay: 'Every Wednesday, 4:00 PM',
     meetingLocation: 'Library Reading Room, Second Floor',
     memberCount: '50+ members',
@@ -163,7 +163,7 @@ On the fitness side, we run group gym sessions three times a week with trained s
 
 Whether you're a stats nerd who wants to understand performance data, an athlete looking for a structured training community, or simply someone starting their fitness journey — we have something for you.`,
     color: '#ef4444',
-    gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+    gradient: '#ef4444',
     meetingDay: 'Mon, Wed, Fri — 6:00 AM & 5:00 PM',
     meetingLocation: 'Campus Gym & Sports Analytics Lab',
     memberCount: '80+ members',
@@ -179,7 +179,7 @@ Our education outreach program sends university students to local primary and se
 
 Recent initiatives include a digital literacy program teaching basic computer skills to community members and a scholarship fundraising drive that has supported five students from disadvantaged backgrounds. Come join us if you want to make a real difference beyond the classroom.`,
     color: '#14b8a6',
-    gradient: 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
+    gradient: '#14b8a6',
     meetingDay: 'Every Sunday, 9:00 AM',
     meetingLocation: 'Student Center, Ground Floor',
     memberCount: '100+ members',
@@ -194,7 +194,7 @@ const Clubs: React.FC = () => {
     <div style={{ minHeight: '100vh', background: '#f9fafb' }}>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: '#1a2332',
         padding: '60px 20px',
         color: 'white',
         position: 'relative',
@@ -291,7 +291,7 @@ const Clubs: React.FC = () => {
                       </span>
                     )}
                     {club.meetingLocation && (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#eef3fa', color: '#1e3a5f', border: '1px solid #c8d8e8', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>
                         <FiMapPin size={11} /> {club.meetingLocation}
                       </span>
                     )}
@@ -369,7 +369,7 @@ const Clubs: React.FC = () => {
               onClick={() => navigate('/contact')}
               style={{
                 padding: '14px 28px',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                background: '#1a2332',
                 color: 'white',
                 border: 'none',
                 borderRadius: 10,
@@ -388,8 +388,8 @@ const Clubs: React.FC = () => {
               style={{
                 padding: '14px 28px',
                 background: 'transparent',
-                color: '#667eea',
-                border: '2px solid #667eea',
+                color: '#1e3a5f',
+                border: '2px solid #1e3a5f',
                 borderRadius: 10,
                 fontWeight: 600,
                 fontSize: 16,
@@ -518,7 +518,7 @@ const Clubs: React.FC = () => {
 
               {/* Club Image placeholder */}
               <div style={{
-                background: 'linear-gradient(145deg, #f1f5f9, #e2e8f0)',
+                background: '#f1f5f9',
                 borderRadius: 12,
                 height: 160,
                 display: 'flex',

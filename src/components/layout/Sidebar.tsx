@@ -10,10 +10,11 @@ interface SidebarProps {
   onClose?: () => void;   // mobile: close callback
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin', isOpen = false, onClose }) => {
+const Sidebar: React.FC<SidebarProps> = ({ role = 'user', isOpen = false, onClose }) => {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isGuard, setIsGuard] = useState(false);
 
   useEffect(() => {
     try {
@@ -22,13 +23,19 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin', isOpen = false, onClo
         const user = JSON.parse(userStr);
         const r = user.role || 'user';
         setIsAdmin(r === 'admin');
+        setIsGuard(r === 'guard');
       } else {
         setIsAdmin(false);
+        setIsGuard(false);
       }
     } catch {
       setIsAdmin(false);
+      setIsGuard(false);
     }
   }, []);
+
+  // Guard sees everything admin sees EXCEPT Members and Rooms
+  const showAdminExtras = isAdmin || isGuard;
 
   const handleLogout = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -44,7 +51,6 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin', isOpen = false, onClo
   };
 
   const handleNavClick = () => {
-    // Close mobile sidebar when a nav item is clicked
     if (onClose) onClose();
   };
 
@@ -75,6 +81,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin', isOpen = false, onClo
             </NavLink>
           </li>
 
+          {/* Members and Rooms — admin only, NOT guard */}
           {isAdmin && (
             <>
               <li>
@@ -99,7 +106,8 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin', isOpen = false, onClo
             </NavLink>
           </li>
 
-          {isAdmin && (
+          {/* Reports and Pending Returns — admin AND guard */}
+          {showAdminExtras && (
             <>
               <li>
                 <NavLink to="/reports" title="Reports" onClick={handleNavClick}>
@@ -134,7 +142,6 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin', isOpen = false, onClo
 
       {/* Bottom area */}
       <div className={`sidebar-bottom ${collapsed ? 'sidebar-bottom-collapsed' : ''}`}>
-        {/* Collapse toggle always on top in bottom area */}
         <button
           className="sidebar-toggle sidebar-toggle-desktop"
           onClick={() => setCollapsed(!collapsed)}
@@ -145,7 +152,6 @@ const Sidebar: React.FC<SidebarProps> = ({ role = 'Admin', isOpen = false, onClo
           </span>
         </button>
 
-        {/* Divider between collapse toggle and logout */}
         <hr style={{
           border: 'none',
           borderTop: '1px solid rgba(255, 255, 255, 0.15)',

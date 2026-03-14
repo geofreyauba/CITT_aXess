@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CITT Member Verification</title>
+  <style>
+    /* ── Reset & base ──────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: linear-gradient(160deg, #0f172a 0%, #1e3a5f 55%, #0f172a 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 24px 16px 48px;
+      color: #1e293b;
+    }
+
+    /* ── Card container ────────────────────────────────────────────────── */
+    .card {
+      background: #fff;
+      border-radius: 20px;
+      width: 100%;
+      max-width: 480px;
+      overflow: hidden;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08);
+    }
+
+    /* ── Institution header ─────────────────────────────────────────────  */
+    .inst-header {
+      background: linear-gradient(135deg, #1a0a2e 0%, #6b4fa8 100%);
+      padding: 18px 22px 14px;
+      text-align: center;
+      position: relative;
+    }
+    .inst-header::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 4px;
+      background: linear-gradient(90deg, transparent, #c9a84c, #f0c040, #c9a84c, transparent);
+    }
+    .inst-header .inst-name {
+      color: #f0c040;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+    }
+    .inst-header .inst-sub {
+      color: rgba(255,255,255,0.7);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      margin-top: 3px;
+    }
+    .inst-header .verified-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(16,185,129,0.2);
+      border: 1px solid rgba(16,185,129,0.5);
+      color: #6ee7b7;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-top: 10px;
+    }
+
+    /* ── Name hero ──────────────────────────────────────────────────────── */
+    .hero {
+      background: linear-gradient(160deg, #0f172a 0%, #1e3a5f 100%);
+      padding: 20px 22px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .avatar {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 800;
+      color: #fff;
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.18);
+    }
+    .hero-name {
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .badge {
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+    }
+    .badge-role    { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.9); text-transform: uppercase; letter-spacing: 1px; }
+    .badge-approved { background: #dcfce7; color: #15803d; }
+    .badge-pending  { background: #fef9c3; color: #a16207; }
+    .badge-rejected { background: #fee2e2; color: #dc2626; }
+    .badge-type    { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); }
+
+    /* ── Membership pill ────────────────────────────────────────────────── */
+    .membership-pill {
+      margin: 14px 18px 0;
+      border-radius: 12px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border: 1.5px solid;
+    }
+    .membership-pill .trophy { font-size: 24px; }
+    .membership-pill .tier-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #94a3b8;
+    }
+    .membership-pill .tier-name {
+      font-size: 17px;
+      font-weight: 800;
+      margin-top: 2px;
+    }
+
+    /* ── Details table ──────────────────────────────────────────────────── */
+    .table-wrap {
+      margin: 14px 18px 0;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+    }
+    .table-head {
+      display: grid;
+      grid-template-columns: 40% 1fr;
+      background: linear-gradient(135deg, #1e40af, #3b82f6);
+    }
+    .table-head div {
+      padding: 9px 14px;
+      font-size: 10.5px;
+      font-weight: 800;
+      color: rgba(255,255,255,0.92);
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+    }
+    .table-head div + div { border-left: 1px solid rgba(255,255,255,0.2); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    tr:nth-child(even) td { background: #fafbfc; }
+    tr:hover td { background: #f0f4ff; }
+    td {
+      padding: 10px 14px;
+      font-size: 13px;
+      border: 1px solid #e8ecf0;
+      vertical-align: top;
+      transition: background 0.15s;
+    }
+    td.field-name {
+      width: 40%;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #475569;
+      background: #f8fafc;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+    }
+    td.field-value {
+      color: #1e293b;
+      font-weight: 500;
+      word-break: break-word;
+    }
+    td.field-value.accent {
+      font-weight: 700;
+      color: #0f172a;
+    }
+    td.field-value.mono {
+      font-family: monospace;
+      font-size: 12px;
+      color: #475569;
+    }
+    td.field-value .phone-link {
+      color: #0284c7;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    /* ── Scan timestamp footer ─────────────────────────────────────────── */
+    .scan-footer {
+      margin: 14px 18px 0;
+      padding: 10px 14px;
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #15803d;
+      font-weight: 600;
+    }
+
+    /* ── Bottom padding ────────────────────────────────────────────────── */
+    .bottom-pad { height: 20px; }
+
+    /* ── Error / loading states ─────────────────────────────────────────── */
+    .state-box {
+      padding: 48px 24px;
+      text-align: center;
+    }
+    .state-box .icon { font-size: 48px; margin-bottom: 14px; }
+    .state-box .title { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+    .state-box .sub { font-size: 13px; color: #64748b; line-height: 1.6; }
+
+    /* ── Responsive tweaks ──────────────────────────────────────────────── */
+    @media (max-width: 400px) {
+      td { padding: 8px 10px; }
+      .hero { padding: 16px 16px; }
+      .table-wrap, .membership-pill, .scan-footer { margin-left: 14px; margin-right: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="state-box">
+      <div class="icon">⏳</div>
+      <div class="title">Loading member data…</div>
+      <div class="sub">Reading QR code parameters</div>
+    </div>
+  </div>
+
+  <script>
+    // ── Colour maps ─────────────────────────────────────────────────────────────
+    const MEMBERSHIP_COLORS = {
+      DigiTech: { bg: '#ede9fe', color: '#5b21b6', border: '#c4b5fd' },
+      Premium:  { bg: '#fef3c7', color: '#92400e', border: '#fcd34d' },
+      Gold:     { bg: '#fefce8', color: '#a16207', border: '#fde047' },
+      Platinum: { bg: '#f1f5f9', color: '#334155', border: '#94a3b8' },
+      Basic:    { bg: '#d1fae5', color: '#065f46', border: '#6ee7b7' },
+    };
+    const DEFAULT_MS = { bg: '#e0f2fe', color: '#0369a1', border: '#7dd3fc' };
+
+    const STATUS_MAP = {
+      approved: { cls: 'badge-approved', label: '✓ Verified'  },
+      pending:  { cls: 'badge-pending',  label: '⏳ Pending'  },
+      rejected: { cls: 'badge-rejected', label: '✗ Rejected'  },
+    };
+
+    const AVATAR_COLORS = ['#6366f1','#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
+
+    // ── Helpers ─────────────────────────────────────────────────────────────────
+    function avatarBg(name) {
+      return AVATAR_COLORS[(name || ' ').charCodeAt(0) % AVATAR_COLORS.length];
+    }
+
+    function initials(name) {
+      return (name || '?').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+    }
+
+    function esc(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    function formatTime(ts) {
+      if (!ts) return null;
+      try {
+        return new Date(parseInt(ts)).toLocaleString('en-GB', {
+          weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+          hour: '2-digit', minute: '2-digit',
+        });
+      } catch { return null; }
+    }
+
+    // ── Table row helper ─────────────────────────────────────────────────────────
+    function row(label, value, cls = '') {
+      if (!value) return '';
+      return `
+        <tr>
+          <td class="field-name">${esc(label)}</td>
+          <td class="field-value ${cls}">${value}</td>
+        </tr>`;
+    }
+
+    // ── Main render ──────────────────────────────────────────────────────────────
+    function render(m) {
+      const ms = MEMBERSHIP_COLORS[m.membership] || DEFAULT_MS;
+      const ss = STATUS_MAP[m.verificationStatus] || null;
+      const bg = avatarBg(m.fullName);
+      const ini = initials(m.fullName);
+      const now = new Date().toLocaleString('en-GB', {
+        weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      });
+
+      // Membership pill
+      const msPill = (m.membership && m.membership !== 'None') ? `
+        <div class="membership-pill" style="background:${ms.bg};border-color:${ms.border}">
+          <span class="trophy">🏆</span>
+          <div>
+            <div class="tier-label">MEMBERSHIP TIER</div>
+            <div class="tier-name" style="color:${ms.color}">${esc(m.membership)}</div>
+          </div>
+        </div>` : '';
+
+      // Status & role badges
+      let badges = '';
+      if (m.role) badges += `<span class="badge badge-role">${esc(m.role)}</span>`;
+      if (ss)     badges += `<span class="badge ${ss.cls}">${ss.label}</span>`;
+      if (m.accountType) {
+        const label = m.accountType === 'non_student' ? 'Non-Student'
+                    : m.accountType.charAt(0).toUpperCase() + m.accountType.slice(1);
+        badges += `<span class="badge badge-type">${esc(label)}</span>`;
+      }
+
+      // Phone — tappable link
+      const phoneVal = m.phone
+        ? `<a class="phone-link" href="tel:${esc(m.phone)}">📞 ${esc(m.phone)}</a>`
+        : '';
+
+      // Member ID — last 12 chars uppercase
+      const memberId = m._id ? m._id.slice(-12).toUpperCase() : '';
+
+      const tableRows = [
+        row('Full Name',    esc(m.fullName || ''), 'accent'),
+        row('Member ID',    memberId ? `<span class="mono">${memberId}</span>` : ''),
+        row('Phone',        phoneVal, 'accent'),
+        row('Email',        m.email ? esc(m.email) : ''),
+        row('Institution',  m.institution ? esc(m.institution) : ''),
+        row('Campus',       m.campus    ? esc(m.campus)    : ''),
+        row('Programme',    m.program   ? esc(m.program)   : ''),
+        row('Level',        m.level     ? esc(m.level)     : ''),
+        row('Year of Study',m.yearOfStudy ? `Year ${esc(m.yearOfStudy)}` : ''),
+      ].join('');
+
+      document.getElementById('card').innerHTML = `
+        <!-- Institution header -->
+        <div class="inst-header">
+          <div class="inst-name">Mbeya University of Science and Technology</div>
+          <div class="inst-sub">Centre of Innovation Technology Transfer · CITT</div>
+          <div><span class="verified-badge">✅ Identity Verified</span></div>
+        </div>
+
+        <!-- Name hero -->
+        <div class="hero">
+          <div class="avatar" style="background:${bg}">${ini}</div>
+          <div style="flex:1;min-width:0">
+            <div class="hero-name">${esc(m.fullName || '—')}</div>
+            <div class="badges">${badges}</div>
+          </div>
+        </div>
+
+        <!-- Membership pill -->
+        ${msPill}
+
+        <!-- Details table -->
+        <div class="table-wrap">
+          <div class="table-head">
+            <div>Field</div>
+            <div>Information</div>
+          </div>
+          <table>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>
+
+        <!-- Scan timestamp -->
+        <div class="scan-footer">
+          <span>🕐</span>
+          <span>Scanned at ${esc(now)}</span>
+        </div>
+
+        <div class="bottom-pad"></div>
+      `;
+    }
+
+    function showError(title, sub) {
+      document.getElementById('card').innerHTML = `
+        <div class="state-box">
+          <div class="icon">⚠️</div>
+          <div class="title">${title}</div>
+          <div class="sub">${sub}</div>
+        </div>`;
+    }
+
+    // ── Entry point: read ?data= or ?m= query param ─────────────────────────────
+    //
+    // Your QR code should encode a URL like:
+    //   https://your-domain/verify.html?data=<base64-encoded-json>
+    // or:
+    //   https://your-domain/verify.html?m=<url-encoded-json>
+    //
+    (function init() {
+      const params = new URLSearchParams(window.location.search);
+
+      // Try ?data= (base64 JSON — compact, safe for QR)
+      const b64 = params.get('data');
+      if (b64) {
+        try {
+          const decoded = JSON.parse(atob(decodeURIComponent(b64)));
+          render(decoded);
+          return;
+        } catch {
+          showError('Invalid QR Data', 'The base64 member data in this QR code could not be decoded.');
+          return;
+        }
+      }
+
+      // Try ?m= (URL-encoded JSON — for direct testing)
+      const mParam = params.get('m');
+      if (mParam) {
+        try {
+          const decoded = JSON.parse(decodeURIComponent(mParam));
+          render(decoded);
+          return;
+        } catch {
+          showError('Invalid QR Data', 'The member JSON in this URL could not be parsed.');
+          return;
+        }
+      }
+
+      // Demo mode — show example data when no params
+      render({
+        _id:               '507f1f77bcf86cd799439011',
+        fullName:          'Amina Salehe Mkondo',
+        email:             'amina.mkondo@must.ac.tz',
+        phone:             '+255 712 345 678',
+        institution:       'MUST',
+        membership:        'DigiTech',
+        campus:            'Mbeya',
+        program:           'Computer Science & Engineering',
+        level:             'Undergraduate',
+        yearOfStudy:       '3',
+        role:              'innovator',
+        accountType:       'student',
+        verificationStatus:'approved',
+      });
+    })();
+  </script>
+</body>
+</html>

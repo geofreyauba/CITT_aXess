@@ -27,10 +27,21 @@ interface Room {
   floorLabel?: 'basement' | 'ground' | 'first' | 'second';
   direction?: string;
   directionImage?: string;
+  directionImages?: string[];   // ordered array of route-image paths
   coordinator?: string;
   capacity?: number | null;
   equipment?: string[];
   isPrivate?: boolean;
+  members?: RoomMember[];
+}
+
+interface RoomMember {
+  _id: string;
+  name: string;
+  role?: string;
+  phone?: string;
+  email?: string;
+  addedAt?: string;
 }
 
 const FLOOR_LABEL: Record<string, string> = {
@@ -39,6 +50,21 @@ const FLOOR_LABEL: Record<string, string> = {
   first:    'First Floor',
   second:   'Second Floor',
 };
+
+const EQUIPMENT_OPTIONS = [
+  'Projector', 'Whiteboard', 'AC', 'WiFi', 'Smart Board',
+  'TV Screen', 'Sound System', 'Desktop PCs', 'Printer',
+  'Lab Equipment', 'Conference Phone', 'Webcam', 'Microphone', 'Lighting System',
+];
+
+const CAPACITY_BUCKETS = [
+  { label: 'Any capacity', min: 0, max: Infinity },
+  { label: '1–10 people',  min: 1, max: 10 },
+  { label: '11–30 people', min: 11, max: 30 },
+  { label: '31–60 people', min: 31, max: 60 },
+  { label: '61–100 people',min: 61, max: 100 },
+  { label: '100+ people',  min: 101, max: Infinity },
+];
 
 const SC: Record<string, { bg: string; color: string; dot: string; border: string }> = {
   available:   { bg: '#dcfce7', color: '#15803d', dot: '#22c55e', border: '#bbf7d0' },
@@ -126,7 +152,7 @@ const FEATURE_STEPS: FeatureStep[] = [
     id: 2,
     title: 'Request Access',
     shortDesc: 'Log in and submit a key request for any available room in just a few clicks.',
-    color: '#7c3aed',
+    color: '#1e3a5f',
     bgClass: 'violet',
     icon: null,
     steps: [
@@ -179,22 +205,53 @@ const Home: React.FC = () => {
   const [previewRoom, setPreviewRoom]   = useState<Room | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const closeMenu = () => setMobileMenuOpen(false);
-  const [showImageModal, setShowImageModal] = useState(false); // NEW: For viewing direction image
+  const [showImageModal, setShowImageModal] = useState(false);
   const [activeFeature, setActiveFeature] = useState<FeatureStep | null>(null);
+
+  // ── Direction slideshow state (for room modal) ──────────────────────────
+  const [dirSlideIndex, setDirSlideIndex]   = useState(0);
+  const [dirDragOffset, setDirDragOffset]   = useState(0);
+  const dirDragStartX  = useRef<number | null>(null);
+  const dirDragStartY  = useRef<number | null>(null);
+  const dirIsDragging  = useRef(false);
+  const dirTimerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Streaming text for welcome heading
   const { displayed: heroText, done: heroDone } = useStreamingText('Welcome to Campus aXessHub', 140, 2200);
 
   // Search + filter
-  const [query, setQuery]             = useState('');
+  const [query, setQuery]               = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterFloor, setFilterFloor]   = useState('all');
+  const [filterCapacity, setFilterCapacity] = useState('');
+  const [filterEquipment, setFilterEquipment] = useState('');
+  const [filterPrivacy, setFilterPrivacy]   = useState('all');
   const [showFilters, setShowFilters]   = useState(false);
+
+  // Admin state
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Members panel state
+  const [showMembers, setShowMembers]     = useState(false);
+  const [roomMembers, setRoomMembers]     = useState<RoomMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [addMemberName, setAddMemberName]   = useState('');
+  const [addMemberRole, setAddMemberRole]   = useState('');
+  const [addMemberPhone, setAddMemberPhone] = useState('');
+  const [addMemberEmail, setAddMemberEmail] = useState('');
+  const [addingMember, setAddingMember]     = useState(false);
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', fn);
     return () => window.removeEventListener('scroll', fn);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const u = localStorage.getItem('currentUser');
+      if (u) setIsAdmin(JSON.parse(u).role === 'admin');
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -205,37 +262,42 @@ const Home: React.FC = () => {
       .finally(() => setLoadingRooms(false));
   }, []);
 
+  // ── All equipment tags from loaded rooms ──────────────────────────────
+  const allEquipmentTags = useMemo(() => {
+    const t = new Set<string>();
+    rooms.forEach(r => (r.equipment || []).forEach(e => t.add(e)));
+    return [...t].sort();
+  }, [rooms]);
+
   // ── filtered rooms ──────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    
-    // Define floor order for sorting
-    const floorOrder: Record<string, number> = {
-      'basement': 1,
-      'ground': 2,
-      'first': 3,
-      'second': 4,
-    };
-    
+    const floorOrder: Record<string, number> = { basement:1, ground:2, first:3, second:4 };
+    const bucket = CAPACITY_BUCKETS.find(b => b.label === filterCapacity);
     return rooms
       .filter(r => {
         if (q && !r.name.toLowerCase().includes(q) &&
                  !r.code.toLowerCase().includes(q) &&
+                 !(r.coordinator?.toLowerCase().includes(q)) &&
                  !(r.direction?.toLowerCase().includes(q))) return false;
         if (filterStatus !== 'all' && r.status !== filterStatus) return false;
         if (filterFloor  !== 'all' && r.floorLabel !== filterFloor) return false;
+        if (filterPrivacy === 'public'  && r.isPrivate)  return false;
+        if (filterPrivacy === 'private' && !r.isPrivate) return false;
+        if (bucket && bucket.min > 0) {
+          const cap = r.capacity ?? 0;
+          if (cap < bucket.min || cap > bucket.max) return false;
+        }
+        if (filterEquipment && !(r.equipment ?? []).includes(filterEquipment)) return false;
         return true;
       })
       .sort((a, b) => {
-        // Sort by floor: basement → ground → first → second
         const floorA = floorOrder[a.floorLabel || ''] || 999;
         const floorB = floorOrder[b.floorLabel || ''] || 999;
         if (floorA !== floorB) return floorA - floorB;
-        
-        // Then sort by name alphabetically
         return a.name.localeCompare(b.name);
       });
-  }, [rooms, query, filterStatus, filterFloor]);
+  }, [rooms, query, filterStatus, filterFloor, filterCapacity, filterEquipment, filterPrivacy]);
 
   const stats = useMemo(() => ({
     available:   rooms.filter(r => r.status === 'available').length,
@@ -244,10 +306,93 @@ const Home: React.FC = () => {
     private:     rooms.filter(r => r.isPrivate).length,
   }), [rooms]);
 
-  const activeFilters = [filterStatus !== 'all', filterFloor !== 'all', !!query].filter(Boolean).length;
+  const activeFilters = [filterStatus !== 'all', filterFloor !== 'all', filterPrivacy !== 'all', !!filterCapacity, !!filterEquipment, !!query].filter(Boolean).length;
 
   const goLogin  = () => { setPreviewRoom(null); navigate('/login'); };
-  const clearAll = () => { setQuery(''); setFilterStatus('all'); setFilterFloor('all'); };
+  const clearAll = () => { setQuery(''); setFilterStatus('all'); setFilterFloor('all'); setFilterCapacity(''); setFilterEquipment(''); setFilterPrivacy('all'); };
+
+  // ── Members helpers ───────────────────────────────────────────────────────
+  const fetchMembers = async (roomId: string) => {
+    setMembersLoading(true);
+    try {
+      const res = await fetch(`/api/rooms/${roomId}/members`);
+      const data = await res.json();
+      setRoomMembers(Array.isArray(data) ? data : []);
+    } catch { setRoomMembers([]); }
+    finally { setMembersLoading(false); }
+  };
+
+  const openMembers = (room: Room) => {
+    setShowMembers(true);
+    setRoomMembers([]);
+    setAddMemberName(''); setAddMemberRole(''); setAddMemberPhone(''); setAddMemberEmail('');
+    fetchMembers(room._id);
+  };
+
+  const handleAddMember = async () => {
+    if (!addMemberName.trim() || !previewRoom) return;
+    setAddingMember(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`/api/rooms/${previewRoom._id}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ name: addMemberName.trim(), role: addMemberRole.trim(), phone: addMemberPhone.trim(), email: addMemberEmail.trim() }),
+      });
+      if (!res.ok) throw new Error('Failed to add member');
+      setAddMemberName(''); setAddMemberRole(''); setAddMemberPhone(''); setAddMemberEmail('');
+      fetchMembers(previewRoom._id);
+    } catch (e: any) { alert(e.message); }
+    finally { setAddingMember(false); }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (!previewRoom || !confirm('Remove this member?')) return;
+    try {
+      const token = localStorage.getItem('authToken');
+      await fetch(`/api/rooms/${previewRoom._id}/members/${memberId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      fetchMembers(previewRoom._id);
+    } catch (e: any) { alert(e.message); }
+  };
+
+  // ── Direction images for currently open room ─────────────────────────────
+  const dirImages = useMemo(() => {
+    if (!previewRoom) return [];
+    if (previewRoom.directionImages && previewRoom.directionImages.length > 0)
+      return previewRoom.directionImages.map(p => `http://localhost:5000${p}`);
+    if (previewRoom.directionImage)
+      return [`http://localhost:5000${previewRoom.directionImage}`];
+    return [];
+  }, [previewRoom]);
+
+  // Reset slide index whenever a different room is opened
+  useEffect(() => { setDirSlideIndex(0); setDirDragOffset(0); }, [previewRoom?._id]);
+
+  // Auto-advance every 10 s when there are multiple images
+  useEffect(() => {
+    if (dirImages.length > 1 && previewRoom) {
+      dirTimerRef.current = setInterval(() => {
+        setDirSlideIndex(prev => (prev + 1) % dirImages.length);
+      }, 10000);
+    } else {
+      if (dirTimerRef.current) clearInterval(dirTimerRef.current);
+    }
+    return () => { if (dirTimerRef.current) clearInterval(dirTimerRef.current); };
+  }, [dirImages.length, previewRoom?._id]);
+
+  const goDirSlide = (delta: number) => {
+    if (dirTimerRef.current) clearInterval(dirTimerRef.current);
+    setDirDragOffset(0);
+    setDirSlideIndex(prev => (prev + delta + dirImages.length) % dirImages.length);
+    if (dirImages.length > 1) {
+      dirTimerRef.current = setInterval(() => {
+        setDirSlideIndex(prev => (prev + 1) % dirImages.length);
+      }, 10000);
+    }
+  };
 
   return (
     <>
@@ -262,7 +407,7 @@ const Home: React.FC = () => {
         /* ── GUEST BANNER ── */
         .hm-gb {
           position: fixed; top: 0; left: 0; right: 0; z-index: 500;
-          background: linear-gradient(90deg, #4338ca, #6366f1, #818cf8);
+          background: #1e3a5f;
           color: #fff; font-size: 12.5px; font-weight: 600;
           padding: 7px 16px;
           display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -285,23 +430,23 @@ const Home: React.FC = () => {
           border-radius: 60px;
           padding: 8px 8px 8px 22px;
           display: flex; align-items: center; gap: 4px;
-          box-shadow: 0 4px 28px rgba(99,102,241,.1);
+          box-shadow: 0 4px 28px rgba(30,58,95,.08);
           backdrop-filter: blur(12px);
           transition: box-shadow .3s, border-color .3s;
         }
-        .hm-nav-in.sc { box-shadow: 0 8px 40px rgba(99,102,241,.18); border-color: rgba(165,180,252,.4); }
+        .hm-nav-in.sc { box-shadow: 0 8px 40px rgba(30,58,95,.18); border-color: rgba(165,180,252,.4); }
         .hm-logo { display: flex; align-items: center; gap: 9px; text-decoration: none; flex-shrink: 0; }
         .hm-logo-ico {
           width: 34px; height: 34px; border-radius: 10px;
-          background: linear-gradient(135deg, #6366f1, #4338ca);
+          background: #1e3a5f;
           display: flex; align-items: center; justify-content: center;
-          color: #fff; font-size: 16px; box-shadow: 0 2px 8px rgba(99,102,241,.35);
+          color: #fff; font-size: 16px; box-shadow: 0 2px 8px rgba(30,58,95,.35);
         }
         .hm-logo-txt {
           font-family: 'Bricolage Grotesque', sans-serif;
           font-size: 17px; font-weight: 800; color: #0f172a;
         }
-        .hm-logo-txt span { color: #6366f1; }
+        .hm-logo-txt span { color: #1e3a5f; }
         .hm-links {
           display: flex; align-items: center; gap: 1px; list-style: none; margin-left: auto;
         }
@@ -310,39 +455,39 @@ const Home: React.FC = () => {
           color: #475569; font-size: 13.5px; font-weight: 600;
           padding: 7px 13px; border-radius: 50px; transition: all .18s;
         }
-        .hm-links a:hover { background: #f1f5f9; color: #6366f1; }
-        .hm-links a.act  { background: #eef2ff; color: #6366f1; }
+        .hm-links a:hover { background: #f1f5f9; color: #1e3a5f; }
+        .hm-links a.act  { background: #f0f4f8; color: #1e3a5f; }
         .hm-login-btn {
           display: flex; align-items: center; gap: 7px;
-          background: linear-gradient(135deg, #6366f1, #4338ca);
+          background: #1e3a5f;
           color: #fff; border: none; padding: 9px 20px; border-radius: 50px;
           font-size: 13.5px; font-weight: 700; cursor: pointer;
           font-family: 'DM Sans', sans-serif;
-          box-shadow: 0 4px 14px rgba(99,102,241,.35);
+          box-shadow: 0 4px 14px rgba(30,58,95,.35);
           transition: all .2s; white-space: nowrap;
         }
-        .hm-login-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,.45); }
+        .hm-login-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(30,58,95,.45); }
 
         /* ── HERO ── */
         .hm-hero {
           min-height: 100vh; padding: 158px 20px 80px;
           display: flex; align-items: center; justify-content: center;
-          background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(99,102,241,.08) 0%, transparent 70%),
-                      linear-gradient(180deg, #f8faff 0%, #eef2ff 100%);
+          background: #f8fafc;
+                      #f8fafc;
           position: relative; overflow: hidden;
         }
         .hm-hero::before {
           content: '';
           position: absolute; top: -100px; right: -200px;
           width: 600px; height: 600px; border-radius: 50%;
-          background: radial-gradient(circle, rgba(99,102,241,.08), transparent 70%);
+          background: transparent;
           pointer-events: none;
         }
         .hm-hero::after {
           content: '';
           position: absolute; bottom: -80px; left: -150px;
           width: 500px; height: 500px; border-radius: 50%;
-          background: radial-gradient(circle, rgba(139,92,246,.06), transparent 70%);
+          background: transparent;
           pointer-events: none;
         }
         .hm-hero-in {
@@ -356,8 +501,8 @@ const Home: React.FC = () => {
 
         .hm-eyebrow {
           display: inline-flex; align-items: center; gap: 7px;
-          background: rgba(99,102,241,.1); color: #6366f1;
-          border: 1px solid rgba(99,102,241,.2);
+          background: rgba(30,58,95,.08); color: #1e3a5f;
+          border: 1px solid rgba(30,58,95,.15);
           padding: 6px 14px; border-radius: 50px;
           font-size: 12px; font-weight: 700;
           margin-bottom: 20px; letter-spacing: .02em;
@@ -368,7 +513,7 @@ const Home: React.FC = () => {
           font-weight: 800; line-height: 1.08; color: #0f172a;
           margin-bottom: 10px; letter-spacing: -.03em;
         }
-        .hm-h1 .acc { color: #6366f1; }
+        .hm-h1 .acc { color: #1e3a5f; }
         .hm-tagline { font-size: 17px; font-weight: 700; color: #334155; margin-bottom: 14px; }
         .hm-desc {
           font-size: 15px; color: #64748b; line-height: 1.75;
@@ -377,34 +522,34 @@ const Home: React.FC = () => {
         .hm-cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
         .hm-btn-p {
           display: flex; align-items: center; gap: 8px;
-          background: linear-gradient(135deg, #6366f1, #4338ca);
+          background: #1e3a5f;
           color: #fff; border: none; padding: 14px 28px; border-radius: 50px;
           font-size: 15px; font-weight: 700; cursor: pointer;
           font-family: 'DM Sans', sans-serif;
-          box-shadow: 0 8px 28px rgba(99,102,241,.4); transition: all .22s;
+          box-shadow: 0 8px 28px rgba(30,58,95,.4); transition: all .22s;
         }
         .hm-btn-p:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(99,102,241,.5); }
         .hm-btn-o {
           display: flex; align-items: center; gap: 8px;
-          background: #fff; color: #6366f1;
-          border: 2px solid rgba(99,102,241,.3); padding: 12px 24px; border-radius: 50px;
+          background: #fff; color: #1e3a5f;
+          border: 2px solid rgba(30,58,95,.3); padding: 12px 24px; border-radius: 50px;
           font-size: 15px; font-weight: 700; cursor: pointer;
           font-family: 'DM Sans', sans-serif; transition: all .18s;
           box-shadow: 0 2px 8px rgba(99,102,241,.08);
         }
-        .hm-btn-o:hover { border-color: #6366f1; background: #f5f3ff; }
+        .hm-btn-o:hover { border-color: #1e3a5f; background: #f0f4f8; }
 
         /* ── HERO CARD (right side) ── */
         .hm-hcard {
           width: 100%; max-width: 430px;
           background: #fff; border-radius: 24px; padding: 22px;
           border: 1px solid #e2e8f0;
-          box-shadow: 0 20px 64px rgba(99,102,241,.12);
+          box-shadow: 0 20px 64px rgba(30,58,95,.08);
         }
         .hm-hcard-hdr { display: flex; align-items: center; gap: 11px; margin-bottom: 16px; }
         .hm-hcard-ico {
           width: 40px; height: 40px; border-radius: 11px;
-          background: linear-gradient(135deg, #6366f1, #4338ca);
+          background: #1e3a5f;
           display: flex; align-items: center; justify-content: center;
           color: #fff; font-size: 19px;
         }
@@ -418,7 +563,7 @@ const Home: React.FC = () => {
           cursor: pointer; transition: all .18s;
         }
         .hm-rmini:last-of-type { margin-bottom: 0; }
-        .hm-rmini:hover { background: #eef2ff; border-color: #a5b4fc; transform: translateX(3px); }
+        .hm-rmini:hover { background: #f0f4f8; border-color: #7ba3c8; transform: translateX(3px); }
         .hm-rdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         .hm-rname { font-size: 13px; font-weight: 700; color: #0f172a; flex: 1; }
         .hm-rcode { font-family: 'DM Mono', monospace; font-size: 10.5px; color: #94a3b8; margin-top: 1px; }
@@ -438,17 +583,17 @@ const Home: React.FC = () => {
         }
         .hm-hcard-more {
           margin-left: auto; display: flex; align-items: center; gap: 4px;
-          background: #eef2ff; color: #6366f1; border: none; border-radius: 50px;
+          background: #f0f4f8; color: #1e3a5f; border: none; border-radius: 50px;
           padding: 5px 11px; font-size: 11.5px; font-weight: 700;
           cursor: pointer; font-family: 'DM Sans', sans-serif; transition: background .18s;
         }
-        .hm-hcard-more:hover { background: #e0e7ff; }
+        .hm-hcard-more:hover { background: #e2eaf4; }
 
         /* ── SECTION WRAPPER ── */
         .hm-sec { padding: 76px 20px; }
         .hm-sec.white { background: #fff; }
         .hm-sec.soft  { background: #f8faff; }
-        .hm-sec.indigo { background: linear-gradient(135deg, #eef2ff, #f5f3ff); }
+        .hm-sec.indigo { background: #f0f4f8; }
         .hm-sec-in  { max-width: 1100px; margin: 0 auto; }
         .hm-sec-ttl {
           font-family: 'Bricolage Grotesque', sans-serif;
@@ -464,16 +609,16 @@ const Home: React.FC = () => {
           border: 1px solid transparent; transition: transform .22s, box-shadow .22s;
         }
         .hm-feat:hover { transform: translateY(-5px); box-shadow: 0 16px 40px rgba(0,0,0,.08); }
-        .hm-feat.blue   { background: linear-gradient(145deg, #eff6ff, #dbeafe); border-color: #bfdbfe; }
-        .hm-feat.violet { background: linear-gradient(145deg, #f5f3ff, #ede9fe); border-color: #ddd6fe; }
-        .hm-feat.green  { background: linear-gradient(145deg, #f0fdf4, #dcfce7); border-color: #bbf7d0; }
+        .hm-feat.blue   { background: #eff6ff; border-color: #c8d8e8; }
+        .hm-feat.violet { background: #f0f4f8; border-color: #d1dce8; }
+        .hm-feat.green  { background: #f0fdf4; border-color: #bbf7d0; }
         .hm-feat-ico {
           width: 52px; height: 52px; border-radius: 15px;
           display: flex; align-items: center; justify-content: center;
           margin: 0 auto 16px; font-size: 24px;
         }
-        .hm-feat.blue   .hm-feat-ico { background: #dbeafe; color: #2563eb; }
-        .hm-feat.violet .hm-feat-ico { background: #ede9fe; color: #7c3aed; }
+        .hm-feat.blue   .hm-feat-ico { background: #dbeafe; color: #1e3a5f; }
+        .hm-feat.violet .hm-feat-ico { background: #e8f0f8; color: #1e3a5f; }
         .hm-feat.green  .hm-feat-ico { background: #dcfce7; color: #16a34a; }
         .hm-feat-ttl { font-family: 'Bricolage Grotesque', sans-serif; font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 8px; }
         .hm-feat-desc { color: #64748b; font-size: 13px; line-height: 1.7; }
@@ -494,23 +639,23 @@ const Home: React.FC = () => {
           background: #f8fafc; outline: none; color: #0f172a; transition: all .2s;
           box-sizing: border-box;
         }
-        .hm-search:focus { border-color: #6366f1; background: #fff; box-shadow: 0 0 0 3px rgba(99,102,241,.08); }
+        .hm-search:focus { border-color: #1e3a5f; background: #fff; box-shadow: 0 0 0 3px rgba(99,102,241,.08); }
         .hm-search::placeholder { color: #94a3b8; }
         .hm-sel {
           padding: 9px 12px; border-radius: 10px; border: 1.5px solid #e2e8f0;
           background: #f8fafc; font-size: 13px; font-weight: 600; color: #475569;
           font-family: 'DM Sans', sans-serif; cursor: pointer; outline: none; transition: all .2s;
         }
-        .hm-sel:focus { border-color: #6366f1; background: #fff; }
+        .hm-sel:focus { border-color: #1e3a5f; background: #fff; }
         .hm-filter-btn {
           display: flex; align-items: center; gap: 6px;
           padding: 9px 13px; border-radius: 10px; border: 1.5px solid #e2e8f0;
           background: #f8fafc; font-size: 13px; font-weight: 600; color: #475569;
           cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all .2s;
         }
-        .hm-filter-btn:hover, .hm-filter-btn.on { border-color: #6366f1; background: #eef2ff; color: #6366f1; }
+        .hm-filter-btn:hover, .hm-filter-btn.on { border-color: #1e3a5f; background: #f0f4f8; color: #1e3a5f; }
         .hm-fbadge {
-          background: #6366f1; color: #fff; border-radius: 10px;
+          background: #1e3a5f; color: #fff; border-radius: 10px;
           width: 16px; height: 16px; font-size: 10px; font-weight: 800;
           display: flex; align-items: center; justify-content: center;
         }
@@ -530,7 +675,7 @@ const Home: React.FC = () => {
           border: 1.5px solid #e2e8f0; background: #f8fafc;
           font-size: 13px; font-family: 'DM Sans', sans-serif; color: #1e293b; outline: none; cursor: pointer;
         }
-        .hm-fg select:focus { border-color: #6366f1; }
+        .hm-fg select:focus { border-color: #1e3a5f; }
         .hm-clear-btn {
           display: flex; align-items: center; justify-content: center;
           padding: 8px 14px; border-radius: 8px; border: none;
@@ -563,9 +708,9 @@ const Home: React.FC = () => {
         }
         .hm-rcard::before {
           content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-          background: linear-gradient(90deg, #6366f1, #8b5cf6); opacity: 0; transition: opacity .2s;
+          background: #1e3a5f; opacity: 0; transition: opacity .2s;
         }
-        .hm-rcard:hover { transform: translateY(-4px); box-shadow: 0 14px 36px rgba(99,102,241,.16); border-color: #a5b4fc; }
+        .hm-rcard:hover { transform: translateY(-4px); box-shadow: 0 14px 36px rgba(30,58,95,.1); border-color: #7ba3c8; }
         .hm-rcard:hover::before { opacity: 1; }
         .hm-rcard-name { font-size: 14px; font-weight: 800; color: #0f172a; line-height: 1.3; }
         .hm-rcard-code { font-family: 'DM Mono', monospace; font-size: 10.5px; color: #94a3b8; letter-spacing: .04em; }
@@ -590,14 +735,14 @@ const Home: React.FC = () => {
         /* view more */
         .hm-view-more {
           display: flex; align-items: center; justify-content: center; gap: 8px;
-          margin: 28px auto 0; background: #fff; color: #6366f1;
-          border: 2px solid rgba(99,102,241,.3); border-radius: 50px;
+          margin: 28px auto 0; background: #fff; color: #1e3a5f;
+          border: 2px solid rgba(30,58,95,.3); border-radius: 50px;
           padding: 12px 28px; font-size: 13.5px; font-weight: 700;
           cursor: pointer; font-family: 'DM Sans', sans-serif;
           transition: all .18s; width: fit-content;
           box-shadow: 0 2px 8px rgba(99,102,241,.08);
         }
-        .hm-view-more:hover { background: #eef2ff; border-color: #6366f1; transform: translateY(-1px); }
+        .hm-view-more:hover { background: #f0f4f8; border-color: #1e3a5f; transform: translateY(-1px); }
 
         /* empty state */
         .hm-empty {
@@ -608,29 +753,29 @@ const Home: React.FC = () => {
         /* ── STATS ── */
         .hm-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px,1fr)); gap: 16px; margin-top: 36px; }
         .hm-stat {
-          background: linear-gradient(145deg, #f8fafc, #f1f5f9);
+          background: #f8fafc;
           border-radius: 18px; padding: 24px 14px; text-align: center;
           border: 1px solid #e2e8f0; transition: transform .2s;
         }
-        .hm-stat:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(99,102,241,.1); }
+        .hm-stat:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(30,58,95,.08); }
         .hm-stat-n {
           font-family: 'Bricolage Grotesque', sans-serif;
-          font-size: 30px; font-weight: 800; color: #6366f1; margin-bottom: 3px;
+          font-size: 30px; font-weight: 800; color: #1e3a5f; margin-bottom: 3px;
         }
         .hm-stat-l { font-size: 12px; color: #64748b; font-weight: 600; }
 
         /* ── CTA BOX ── */
         .hm-cta-box {
           max-width: 680px; margin: 0 auto;
-          background: linear-gradient(135deg, #6366f1, #4338ca, #7c3aed);
+          background: #1e3a5f;
           border-radius: 28px; padding: 56px 40px; text-align: center;
-          color: #fff; box-shadow: 0 24px 64px rgba(99,102,241,.3);
+          color: #fff; box-shadow: 0 24px 64px rgba(30,58,95,.3);
         }
         .hm-cta-ttl { font-family: 'Bricolage Grotesque', sans-serif; font-size: 28px; font-weight: 800; margin-bottom: 12px; letter-spacing: -.02em; }
         .hm-cta-sub { font-size: 14.5px; opacity: .88; margin-bottom: 30px; line-height: 1.65; }
         .hm-cta-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
         .hm-cta-w {
-          background: #fff; color: #4338ca; border: none;
+          background: #fff; color: #1e3a5f; border: none;
           padding: 13px 28px; border-radius: 50px;
           font-size: 14px; font-weight: 800; cursor: pointer;
           font-family: 'DM Sans', sans-serif; transition: all .18s;
@@ -648,10 +793,10 @@ const Home: React.FC = () => {
         /* ── FOOTER ── */
         .hm-footer { background: #0f172a; padding: 36px 20px; text-align: center; color: #64748b; font-size: 13px; }
         .hm-footer-brand { font-family: 'Bricolage Grotesque', sans-serif; font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 6px; }
-        .hm-footer-brand span { color: #6366f1; }
+        .hm-footer-brand span { color: #1e3a5f; }
         .hm-footer-links { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin: 12px 0; list-style: none; }
         .hm-footer-links a { color: #64748b; text-decoration: none; transition: color .18s; }
-        .hm-footer-links a:hover { color: #818cf8; }
+        .hm-footer-links a:hover { color: #4a7aad; }
         .hm-footer-tag { font-size: 11px; opacity: .4; margin-top: 6px; }
 
         /* ── MODAL ── */
@@ -663,12 +808,18 @@ const Home: React.FC = () => {
         }
         @keyframes hmoin { from{opacity:0} to{opacity:1} }
         .hm-modal {
-          background: #fff; border-radius: 24px; padding: 28px;
-          width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto;
+          background: #fff; border-radius: 24px; padding: 32px;
+          width: 100%; max-width: 780px; max-height: 92vh; overflow-y: auto;
+          scrollbar-width: thin; scrollbar-color: rgba(22,163,74,.25) transparent;
           box-shadow: 0 32px 80px rgba(0,0,0,.18);
           animation: hmmin .22s cubic-bezier(.34,1.56,.64,1);
         }
         @keyframes hmmin { from{opacity:0;transform:scale(.95) translateY(10px)} to{opacity:1;transform:scale(1) translateY(0)} }
+
+        .hm-modal::-webkit-scrollbar { width: 4px; }
+        .hm-modal::-webkit-scrollbar-track { background: transparent; }
+        .hm-modal::-webkit-scrollbar-thumb { background: rgba(22,163,74,.25); border-radius: 4px; }
+        .hm-modal::-webkit-scrollbar-thumb:hover { background: rgba(22,163,74,.45); }
         .hm-mod-hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
         .hm-mod-name { font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; font-weight: 800; color: #0f172a; }
         .hm-mod-code { font-family: 'DM Mono', monospace; font-size: 12px; color: #94a3b8; margin-top: 2px; }
@@ -699,15 +850,15 @@ const Home: React.FC = () => {
           padding: 9px 0; border-bottom: 1px solid #f1f5f9; font-size: 13.5px;
         }
         .hm-det-row:last-of-type { border-bottom: none; }
-        .hm-det-ic { color: #6366f1; flex-shrink: 0; margin-top: 2px; }
+        .hm-det-ic { color: #1e3a5f; flex-shrink: 0; margin-top: 2px; }
         .hm-det-lbl { font-weight: 700; color: #374151; width: 90px; flex-shrink: 0; }
         .hm-det-val { color: #64748b; flex: 1; }
 
         .hm-equip-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
         .hm-equip-tag {
           padding: 4px 10px; border-radius: 50px;
-          background: rgba(99,102,241,.08); color: #6366f1;
-          border: 1px solid rgba(99,102,241,.18);
+          background: rgba(99,102,241,.08); color: #1e3a5f;
+          border: 1px solid rgba(30,58,95,.18);
           font-size: 11px; font-weight: 700;
         }
         .hm-auth-notice {
@@ -726,12 +877,12 @@ const Home: React.FC = () => {
         .hm-mod-close-btn:hover { background: #e2e8f0; }
         .hm-mod-login-btn {
           flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
-          background: linear-gradient(135deg, #6366f1, #4338ca); color: #fff; border: none;
+          background: #1e3a5f; color: #fff; border: none;
           padding: 12px 18px; border-radius: 11px; font-size: 13.5px; font-weight: 700;
           cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all .18s;
-          box-shadow: 0 4px 14px rgba(99,102,241,.35);
+          box-shadow: 0 4px 14px rgba(30,58,95,.35);
         }
-        .hm-mod-login-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,.45); }
+        .hm-mod-login-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(30,58,95,.45); }
 
         /* ── HAMBURGER BUTTON ── */
         .hm-hamburger {
@@ -743,7 +894,7 @@ const Home: React.FC = () => {
           margin-left: 8px; flex-shrink: 0;
           transition: background .18s;
         }
-        .hm-hamburger:hover { background: #eef2ff; color: #6366f1; border-color: #a5b4fc; }
+        .hm-hamburger:hover { background: #f0f4f8; color: #1e3a5f; border-color: #7ba3c8; }
 
         /* ── MOBILE DROPDOWN MENU ── */
         .hm-mobile-menu {
@@ -763,18 +914,18 @@ const Home: React.FC = () => {
           font-size: 15px; font-weight: 600; color: #334155;
           text-decoration: none; transition: all .15s;
         }
-        .hm-mob-link:hover { background: #eef2ff; color: #6366f1; }
+        .hm-mob-link:hover { background: #f0f4f8; color: #1e3a5f; }
         .hm-mob-login {
           display: flex; align-items: center; justify-content: center; gap: 8px;
           margin-top: 6px; padding: 14px 20px;
-          background: linear-gradient(135deg, #6366f1, #4338ca);
+          background: #1e3a5f;
           color: #fff; border: none; border-radius: 12px;
           font-size: 15px; font-weight: 700; cursor: pointer;
           font-family: 'DM Sans', sans-serif;
-          box-shadow: 0 4px 14px rgba(99,102,241,.35);
+          box-shadow: 0 4px 14px rgba(30,58,95,.35);
           transition: all .18s; width: 100%;
         }
-        .hm-mob-login:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,.45); }
+        .hm-mob-login:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(30,58,95,.45); }
 
         /* ── RESPONSIVE ── */
         @media (max-width: 860px) {
@@ -877,7 +1028,7 @@ const Home: React.FC = () => {
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                   width: 44, height: 44, borderRadius: 12,
-                  background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
+                  background: '#1e3a5f',
                   color: 'white', marginRight: 10, verticalAlign: 'middle',
                   boxShadow: '0 4px 14px rgba(99,102,241,0.4)',
                   animation: 'iconPop 0.35s cubic-bezier(0.34,1.56,0.64,1)',
@@ -904,7 +1055,7 @@ const Home: React.FC = () => {
                   return (
                     <>
                       <span>{before}</span>
-                      <span style={{ color: '#6366f1' }}>{axessPart}</span>
+                      <span style={{ color: '#1e3a5f' }}>{axessPart}</span>
                     </>
                   );
                 }
@@ -913,7 +1064,7 @@ const Home: React.FC = () => {
                 return (
                   <>
                     <span>{before}</span>
-                    <span style={{ color: '#6366f1' }}>{fullAxess}</span>
+                    <span style={{ color: '#1e3a5f' }}>{fullAxess}</span>
                     <span>{afterAxess}</span>
                   </>
                 );
@@ -921,9 +1072,9 @@ const Home: React.FC = () => {
               {/* Bouncing dots while typing */}
               {!heroDone && (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginLeft: 6, verticalAlign: 'middle' }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#6366f1', display: 'inline-block', animation: 'dotBounce 1s ease-in-out infinite', animationDelay: '0ms' }} />
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#6366f1', display: 'inline-block', animation: 'dotBounce 1s ease-in-out infinite', animationDelay: '180ms' }} />
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#6366f1', display: 'inline-block', animation: 'dotBounce 1s ease-in-out infinite', animationDelay: '360ms' }} />
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#1e3a5f', display: 'inline-block', animation: 'dotBounce 1s ease-in-out infinite', animationDelay: '0ms' }} />
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#1e3a5f', display: 'inline-block', animation: 'dotBounce 1s ease-in-out infinite', animationDelay: '180ms' }} />
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#1e3a5f', display: 'inline-block', animation: 'dotBounce 1s ease-in-out infinite', animationDelay: '360ms' }} />
                 </span>
               )}
             </h1>
@@ -1052,7 +1203,7 @@ const Home: React.FC = () => {
           <div
             style={{
               background: '#fff', borderRadius: 24, padding: 0,
-              width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto',
+              width: '100%', maxWidth: 780, maxHeight: '92vh', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,102,241,.25) transparent',
               boxShadow: '0 32px 80px rgba(0,0,0,.22)',
               animation: 'hmmin .22s cubic-bezier(.34,1.56,.64,1)',
             }}
@@ -1234,7 +1385,7 @@ const Home: React.FC = () => {
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 background: '#eff6ff', color: '#1d4ed8',
-                border: '1px solid #bfdbfe', borderRadius: 50,
+                border: '1px solid #c8d8e8', borderRadius: 50,
                 padding: '5px 13px', fontSize: 12, fontWeight: 700,
               }}>
                 <FiGrid size={11} />
@@ -1248,16 +1399,16 @@ const Home: React.FC = () => {
                 onClick={() => document.getElementById('rooms')?.scrollIntoView({ behavior: 'smooth' })}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 7,
-                  background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
+                  background: '#1e3a5f',
                   color: 'white', border: 'none',
                   padding: '10px 20px', borderRadius: 50,
                   fontWeight: 700, fontSize: 13,
                   cursor: 'pointer', fontFamily: 'DM Sans, sans-serif',
-                  boxShadow: '0 4px 14px rgba(99,102,241,.35)',
+                  boxShadow: '0 4px 14px rgba(30,58,95,.35)',
                   transition: 'all .2s',
                 }}
-                onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(99,102,241,.45)'; }}
-                onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(99,102,241,.35)'; }}
+                onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(30,58,95,.45)'; }}
+                onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(30,58,95,.35)'; }}
               >
                 <MdMeetingRoom size={15} /> View All Rooms
                 <FiArrowRight size={13} />
@@ -1266,15 +1417,15 @@ const Home: React.FC = () => {
                 onClick={goLogin}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 7,
-                  background: 'white', color: '#6366f1',
-                  border: '2px solid rgba(99,102,241,.3)',
+                  background: 'white', color: '#1e3a5f',
+                  border: '2px solid rgba(30,58,95,.3)',
                   padding: '8px 18px', borderRadius: 50,
                   fontWeight: 700, fontSize: 13,
                   cursor: 'pointer', fontFamily: 'DM Sans, sans-serif',
                   transition: 'all .18s',
                 }}
-                onMouseOver={(e) => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.background = '#eef2ff'; }}
-                onMouseOut={(e) => { e.currentTarget.style.borderColor = 'rgba(99,102,241,.3)'; e.currentTarget.style.background = 'white'; }}
+                onMouseOver={(e) => { e.currentTarget.style.borderColor = '#1e3a5f'; e.currentTarget.style.background = '#f0f4f8'; }}
+                onMouseOut={(e) => { e.currentTarget.style.borderColor = 'rgba(30,58,95,.3)'; e.currentTarget.style.background = 'white'; }}
               >
                 <FiLogIn size={13} /> Log In to Request
               </button>
@@ -1287,7 +1438,7 @@ const Home: React.FC = () => {
               <FiSearch size={14} className="hm-search-ico"/>
               <input
                 className="hm-search"
-                placeholder="Search by name, code, or location…"
+                placeholder="Search by name, code, coordinator, or location…"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
               />
@@ -1299,33 +1450,53 @@ const Home: React.FC = () => {
               <option value="requested">Requested</option>
               <option value="maintenance">Maintenance</option>
             </select>
+            <select className="hm-sel" value={filterFloor} onChange={e => setFilterFloor(e.target.value)}>
+              <option value="all">All Floors</option>
+              <option value="basement">Basement</option>
+              <option value="ground">Ground Floor</option>
+              <option value="first">First Floor</option>
+              <option value="second">Second Floor</option>
+            </select>
             <button
               className={`hm-filter-btn ${showFilters || activeFilters > 0 ? 'on' : ''}`}
               onClick={() => setShowFilters(p => !p)}
             >
               <FiFilter size={13}/>
-              Filter
+              More Filters
               {activeFilters > 0 && <span className="hm-fbadge">{activeFilters}</span>}
               <FiChevronDown size={12} style={{ transform: showFilters ? 'rotate(180deg)' : 'none', transition: '.2s' }}/>
             </button>
+            {activeFilters > 0 && (
+              <button style={{ padding:'8px 12px', borderRadius:9, border:'1px solid #fca5a5', background:'#fee2e2', color:'#991b1b', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'DM Sans,sans-serif' }} onClick={clearAll}>
+                ✕ Clear
+              </button>
+            )}
           </div>
 
           {/* Filter panel */}
           {showFilters && (
-            <div className="hm-filter-panel">
+            <div className="hm-filter-panel" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:12, background:'#fff', border:'1px solid #e2e8f0', borderRadius:14, padding:'16px 18px', marginBottom:14, boxShadow:'0 4px 16px rgba(0,0,0,.05)', animation:'hm-fd .18s ease' }}>
               <div className="hm-fg">
-                <label>Floor</label>
-                <select value={filterFloor} onChange={e => setFilterFloor(e.target.value)}>
-                  <option value="all">All Floors</option>
-                  <option value="basement">Basement</option>
-                  <option value="ground">Ground Floor</option>
-                  <option value="first">First Floor</option>
-                  <option value="second">Second Floor</option>
+                <label>Capacity</label>
+                <select value={filterCapacity} onChange={e => setFilterCapacity(e.target.value)}>
+                  {CAPACITY_BUCKETS.map(b => <option key={b.label} value={b.label === 'Any capacity' ? '' : b.label}>{b.label}</option>)}
                 </select>
               </div>
-              {(query || activeFilters > 0) && (
-                <button className="hm-clear-btn" onClick={clearAll}>✕ Clear filters</button>
-              )}
+              <div className="hm-fg">
+                <label>Equipment</label>
+                <select value={filterEquipment} onChange={e => setFilterEquipment(e.target.value)}>
+                  <option value="">Any equipment</option>
+                  {allEquipmentTags.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div className="hm-fg">
+                <label>Privacy</label>
+                <select value={filterPrivacy} onChange={e => setFilterPrivacy(e.target.value)}>
+                  <option value="all">All rooms</option>
+                  <option value="public">Public only</option>
+                  <option value="private">Private only</option>
+                </select>
+              </div>
             </div>
           )}
 
@@ -1336,7 +1507,7 @@ const Home: React.FC = () => {
               {query && <> matching &ldquo;<strong>{query}</strong>&rdquo;</>}
             </p>
             {(activeFilters > 0) && (
-              <button style={{ fontSize:12, fontWeight:600, color:'#6366f1', background:'#eef2ff', border:'none', borderRadius:8, padding:'4px 10px', cursor:'pointer', fontFamily:'DM Sans, sans-serif' }} onClick={clearAll}>
+              <button style={{ fontSize:12, fontWeight:600, color:'#1e3a5f', background:'#f0f4f8', border:'none', borderRadius:8, padding:'4px 10px', cursor:'pointer', fontFamily:'DM Sans, sans-serif' }} onClick={clearAll}>
                 ✕ Clear
               </button>
             )}
@@ -1354,7 +1525,7 @@ const Home: React.FC = () => {
               <TbBuildingEstate size={36} color="#94a3b8" style={{ marginBottom:12 }}/>
               <p style={{ fontWeight:700, color:'#1e293b', marginBottom:6 }}>No rooms found</p>
               <p style={{ color:'#94a3b8', fontSize:13, marginBottom:14 }}>Try adjusting your search or filters</p>
-              <button style={{ fontSize:12, fontWeight:600, color:'#6366f1', background:'#eef2ff', border:'none', borderRadius:8, padding:'6px 14px', cursor:'pointer', fontFamily:'DM Sans, sans-serif' }} onClick={clearAll}>
+              <button style={{ fontSize:12, fontWeight:600, color:'#1e3a5f', background:'#f0f4f8', border:'none', borderRadius:8, padding:'6px 14px', cursor:'pointer', fontFamily:'DM Sans, sans-serif' }} onClick={clearAll}>
                 Clear filters
               </button>
             </div>
@@ -1481,7 +1652,7 @@ const Home: React.FC = () => {
       {previewRoom && (() => {
         const s = SC[previewRoom.status] || SC.maintenance;
         return (
-          <div className="hm-overlay" onClick={() => setPreviewRoom(null)}>
+          <div className="hm-overlay" onClick={() => { setPreviewRoom(null); setShowMembers(false); }}>
             <div className="hm-modal" onClick={e => e.stopPropagation()}>
               {/* Header */}
               <div className="hm-mod-hdr">
@@ -1518,40 +1689,121 @@ const Home: React.FC = () => {
                     </div>
                   </div>
                   
-                  {/* View Map Button - only show if directionImage exists */}
-                  {previewRoom.directionImage && (
-                    <button
-                      onClick={() => setShowImageModal(true)}
-                      style={{
-                        marginTop: 10,
-                        width: '100%',
-                        padding: '12px 16px',
-                        background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 10,
-                        fontWeight: 600,
-                        fontSize: 14,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 8,
-                        transition: 'transform 0.2s, box-shadow 0.2s',
-                        boxShadow: '0 2px 8px rgba(22, 163, 74, 0.3)',
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(22, 163, 74, 0.4)';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(22, 163, 74, 0.3)';
-                      }}
-                    >
-                      <FiMapPin size={16} />
-                      View Location Map / Route
-                    </button>
+                  {/* ── Direction Slideshow ── */}
+                  {dirImages.length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      {/* Slideshow wrapper */}
+                      <div
+                        style={{
+                          position: 'relative', overflow: 'hidden', borderRadius: 10,
+                          userSelect: 'none',
+                          touchAction: dirImages.length > 1 ? 'pan-y' : 'auto',
+                        }}
+                        onTouchStart={e => {
+                          if (dirImages.length <= 1) return;
+                          dirDragStartX.current = e.touches[0].clientX;
+                          dirDragStartY.current = e.touches[0].clientY;
+                          dirIsDragging.current = false;
+                        }}
+                        onTouchMove={e => {
+                          if (dirDragStartX.current === null || dirDragStartY.current === null) return;
+                          const dx = e.touches[0].clientX - dirDragStartX.current;
+                          const dy = e.touches[0].clientY - dirDragStartY.current;
+                          if (!dirIsDragging.current && Math.abs(dy) > Math.abs(dx)) { dirDragStartX.current = null; return; }
+                          dirIsDragging.current = true;
+                          setDirDragOffset(dx);
+                        }}
+                        onTouchEnd={e => {
+                          if (dirDragStartX.current === null || !dirIsDragging.current) { dirDragStartX.current = null; setDirDragOffset(0); return; }
+                          const dx = e.changedTouches[0].clientX - dirDragStartX.current;
+                          setDirDragOffset(0); dirDragStartX.current = null; dirIsDragging.current = false;
+                          if (Math.abs(dx) > 50) goDirSlide(dx > 0 ? -1 : 1);
+                        }}
+                        onMouseDown={e => {
+                          if (dirImages.length <= 1) return;
+                          dirDragStartX.current = e.clientX; dirIsDragging.current = false;
+                        }}
+                        onMouseMove={e => {
+                          if (dirDragStartX.current === null) return;
+                          const dx = e.clientX - dirDragStartX.current;
+                          if (!dirIsDragging.current && Math.abs(dx) > 5) dirIsDragging.current = true;
+                          if (dirIsDragging.current) setDirDragOffset(dx);
+                        }}
+                        onMouseUp={e => {
+                          if (dirDragStartX.current === null) return;
+                          const dx = e.clientX - dirDragStartX.current;
+                          const wasDrag = dirIsDragging.current;
+                          setDirDragOffset(0); dirDragStartX.current = null; dirIsDragging.current = false;
+                          if (wasDrag && Math.abs(dx) > 50) goDirSlide(dx > 0 ? -1 : 1);
+                        }}
+                        onMouseLeave={() => { if (dirDragStartX.current !== null) { setDirDragOffset(0); dirDragStartX.current = null; dirIsDragging.current = false; } }}
+                      >
+                        {/* Step label */}
+                        {dirImages.length > 1 && (
+                          <div style={{
+                            position:'absolute', top:8, left:8, zIndex:3,
+                            background:'rgba(0,0,0,0.55)', color:'#fff',
+                            borderRadius:20, padding:'3px 10px', fontSize:11, fontWeight:700,
+                            backdropFilter:'blur(4px)', pointerEvents:'none',
+                          }}>
+                            Step {dirSlideIndex + 1} / {dirImages.length}
+                          </div>
+                        )}
+
+                        {/* Progress bar */}
+                        {dirImages.length > 1 && (
+                          <div key={dirSlideIndex} style={{
+                            position:'absolute', bottom:0, left:0, height:3, zIndex:3,
+                            background:'rgba(22,163,74,0.75)', borderRadius:'0 2px 2px 0',
+                            pointerEvents:'none',
+                            animation:'hm-dir-progress 10s linear infinite',
+                          }}/>
+                        )}
+
+                        {/* Image */}
+                        <img
+                          src={dirImages[dirSlideIndex]}
+                          alt={`Direction step ${dirSlideIndex + 1} to ${previewRoom.name}`}
+                          draggable={false}
+                          style={{
+                            width:'100%', maxHeight:300, objectFit:'contain',
+                            borderRadius:10, border:'1px solid #e2e8f0', background:'#f8fafc',
+                            display:'block',
+                            cursor: dirImages.length > 1 ? (dirDragOffset !== 0 ? 'grabbing' : 'grab') : 'zoom-in',
+                            transform:`translateX(${dirDragOffset}px)`,
+                            transition: dirDragOffset === 0 ? 'transform 0.3s ease' : 'none',
+                          }}
+                          onClick={e => { if (Math.abs(dirDragOffset) < 5) { e.stopPropagation(); setShowImageModal(true); } }}
+                        />
+
+                        {/* Arrows */}
+                        {dirImages.length > 1 && (
+                          <>
+                            <button onClick={e => { e.stopPropagation(); goDirSlide(-1); }} aria-label="Previous"
+                              style={{ position:'absolute', left:7, top:'50%', transform:'translateY(-50%)', width:32, height:32, borderRadius:'50%', border:'none', background:'rgba(0,0,0,0.5)', color:'#fff', fontSize:18, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:4, backdropFilter:'blur(4px)', opacity: dirSlideIndex===0?0.4:1 }}>‹</button>
+                            <button onClick={e => { e.stopPropagation(); goDirSlide(1); }} aria-label="Next"
+                              style={{ position:'absolute', right:7, top:'50%', transform:'translateY(-50%)', width:32, height:32, borderRadius:'50%', border:'none', background:'rgba(0,0,0,0.5)', color:'#fff', fontSize:18, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:4, backdropFilter:'blur(4px)', opacity: dirSlideIndex===dirImages.length-1?0.4:1 }}>›</button>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Dots */}
+                      {dirImages.length > 1 && (
+                        <div style={{ display:'flex', justifyContent:'center', gap:5, marginTop:8 }}>
+                          {dirImages.map((_, i) => (
+                            <button key={i} onClick={e => { e.stopPropagation(); goDirSlide(i - dirSlideIndex); }}
+                              style={{ width: i===dirSlideIndex?22:7, height:7, borderRadius:4, border:'none', background: i===dirSlideIndex?'#16a34a':'#bbf7d0', cursor:'pointer', padding:0, transition:'all 0.3s ease' }}/>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Caption */}
+                      <p style={{ margin:'6px 0 0', fontSize:11, color:'#94a3b8', textAlign:'center' }}>
+                        {dirImages.length > 1
+                          ? `Swipe or use arrows · Auto-advances every 10 s · Tap to enlarge`
+                          : `Tap image to enlarge`}
+                      </p>
+                    </div>
                   )}
                 </div>
               ) : (
@@ -1589,7 +1841,7 @@ const Home: React.FC = () => {
               {previewRoom.equipment && previewRoom.equipment.length > 0 && (
                 <div style={{ marginTop:14 }}>
                   <div style={{ fontSize:12, fontWeight:700, color:'#374151', marginBottom:8, display:'flex', alignItems:'center', gap:5 }}>
-                    <FiZap size={12} color="#6366f1"/> Equipment / Facilities
+                    <FiZap size={12} color="#1e3a5f"/> Equipment / Facilities
                   </div>
                   <div className="hm-equip-wrap">
                     {previewRoom.equipment.map(t => <span key={t} className="hm-equip-tag">{t}</span>)}
@@ -1603,8 +1855,84 @@ const Home: React.FC = () => {
                 You need to be logged in to request the key for this room.
               </div>
 
+              {/* ── Members Panel ── */}
+              {showMembers && (
+                <div style={{ marginTop:16, borderTop:'1px solid #e2e8f0', paddingTop:16 }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                    <div style={{ fontWeight:700, fontSize:14, color:'#0f172a', display:'flex', alignItems:'center', gap:6 }}>
+                      <FiUsers size={15} color="#1e3a5f"/> Room Members
+                      {roomMembers.length > 0 && (
+                        <span style={{ background:'#f0f4f8', color:'#1e3a5f', borderRadius:20, padding:'1px 8px', fontSize:11, fontWeight:800 }}>{roomMembers.length}</span>
+                      )}
+                    </div>
+                    <button onClick={() => setShowMembers(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:4 }}>
+                      <FiX size={16}/>
+                    </button>
+                  </div>
+
+                  {/* Member list */}
+                  {membersLoading ? (
+                    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                      {[1,2].map(i => <div key={i} style={{ height:48, borderRadius:10, background:'#f1f5f9', animation:'pulse 1.5s ease infinite' }}/>)}
+                    </div>
+                  ) : roomMembers.length === 0 ? (
+                    <div style={{ textAlign:'center', padding:'20px 0', color:'#94a3b8', fontSize:13 }}>
+                      No members added yet.
+                    </div>
+                  ) : (
+                    <div style={{ display:'flex', flexDirection:'column', gap:8, maxHeight:220, overflowY:'auto', scrollbarWidth:'thin', scrollbarColor:'rgba(30,58,95,.15) transparent', marginBottom:12 }}>
+                      {roomMembers.map(m => (
+                        <div key={m._id} style={{ display:'flex', alignItems:'center', gap:10, background:'#f8fafc', borderRadius:10, padding:'10px 12px', border:'1px solid #e2e8f0' }}>
+                          <div style={{ width:34, height:34, borderRadius:'50%', background:'#1e3a5f', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, fontSize:14, flexShrink:0 }}>
+                            {m.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontWeight:700, fontSize:13, color:'#0f172a' }}>{m.name}</div>
+                            <div style={{ fontSize:11, color:'#64748b', marginTop:1 }}>
+                              {[m.role, m.phone, m.email].filter(Boolean).join(' · ')}
+                            </div>
+                          </div>
+                          {isAdmin && (
+                            <button onClick={() => handleRemoveMember(m._id)} style={{ background:'#fff1f2', border:'1px solid #fecaca', color:'#e11d48', borderRadius:7, width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+                              <FiX size={12}/>
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add member form — admin only */}
+                  {isAdmin && (
+                    <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:12, padding:'12px 14px', marginTop:8 }}>
+                      <div style={{ fontSize:12, fontWeight:700, color:'#15803d', marginBottom:8 }}>➕ Add Member</div>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                        <input placeholder="Full name *" value={addMemberName} onChange={e => setAddMemberName(e.target.value)}
+                          style={{ padding:'8px 10px', borderRadius:8, border:'1px solid #bbf7d0', fontSize:13, fontFamily:'DM Sans,sans-serif', outline:'none', background:'#fff' }}/>
+                        <input placeholder="Role (e.g. Student)" value={addMemberRole} onChange={e => setAddMemberRole(e.target.value)}
+                          style={{ padding:'8px 10px', borderRadius:8, border:'1px solid #bbf7d0', fontSize:13, fontFamily:'DM Sans,sans-serif', outline:'none', background:'#fff' }}/>
+                        <input placeholder="Phone" value={addMemberPhone} onChange={e => setAddMemberPhone(e.target.value)}
+                          style={{ padding:'8px 10px', borderRadius:8, border:'1px solid #bbf7d0', fontSize:13, fontFamily:'DM Sans,sans-serif', outline:'none', background:'#fff' }}/>
+                        <input placeholder="Email" value={addMemberEmail} onChange={e => setAddMemberEmail(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleAddMember(); }}
+                          style={{ padding:'8px 10px', borderRadius:8, border:'1px solid #bbf7d0', fontSize:13, fontFamily:'DM Sans,sans-serif', outline:'none', background:'#fff' }}/>
+                      </div>
+                      <button onClick={handleAddMember} disabled={addingMember || !addMemberName.trim()}
+                        style={{ marginTop:10, width:'100%', padding:'10px', borderRadius:9, border:'none', background:'#15803d', color:'#fff', fontWeight:700, fontSize:13, cursor: addingMember || !addMemberName.trim() ? 'not-allowed' : 'pointer', opacity: addingMember || !addMemberName.trim() ? 0.6 : 1, fontFamily:'DM Sans,sans-serif', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                        <FiUsers size={13}/>{addingMember ? 'Adding…' : 'Add Member'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="hm-mod-btns">
-                <button className="hm-mod-close-btn" onClick={() => setPreviewRoom(null)}>Close</button>
+                <button className="hm-mod-close-btn" onClick={() => { setPreviewRoom(null); setShowMembers(false); }}>Close</button>
+                <button
+                  onClick={() => { if (!showMembers) openMembers(previewRoom); else setShowMembers(false); }}
+                  style={{ flex:1, padding:'10px 14px', borderRadius:10, border:'none', background: showMembers ? '#f1f5f9' : '#1e3a5f', color: showMembers ? '#64748b' : '#fff', fontWeight:700, fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:7, fontFamily:'DM Sans,sans-serif', transition:'all .18s' }}>
+                  <FiUsers size={14}/>{showMembers ? 'Hide Members' : 'View Members'}
+                </button>
                 <button className="hm-mod-login-btn" onClick={goLogin}>
                   <FiLogIn size={14}/> Log In to Request Key
                 </button>
@@ -1617,110 +1945,61 @@ const Home: React.FC = () => {
       {/* ══════════════════════════════════════════════════════════════
           IMAGE MODAL - View Direction/Route Map
       ══════════════════════════════════════════════════════════════ */}
-      {showImageModal && previewRoom?.directionImage && (
+      {showImageModal && dirImages.length > 0 && previewRoom && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.95)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10000,
-            padding: 20,
-          }}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.95)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10000, padding:20 }}
           onClick={() => setShowImageModal(false)}
         >
-          {/* Close Button */}
-          <button
-            onClick={() => setShowImageModal(false)}
-            style={{
-              position: 'absolute',
-              top: 20,
-              right: 20,
-              background: 'white',
-              border: 'none',
-              borderRadius: '50%',
-              width: 44,
-              height: 44,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-              zIndex: 10001,
-            }}
-          >
-            <FiX size={24} color="#1f2937" />
+          {/* Close */}
+          <button onClick={() => setShowImageModal(false)}
+            style={{ position:'absolute', top:20, right:20, background:'white', border:'none', borderRadius:'50%', width:44, height:44, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', boxShadow:'0 4px 12px rgba(0,0,0,0.3)', zIndex:10001 }}>
+            <FiX size={24} color="#1f2937"/>
           </button>
 
-          {/* Image Title */}
-          <div
-            style={{
-              position: 'absolute',
-              top: 20,
-              left: 20,
-              background: 'rgba(255, 255, 255, 0.95)',
-              padding: '12px 20px',
-              borderRadius: 10,
-              fontWeight: 600,
-              color: '#1f2937',
-              fontSize: 16,
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <FiMapPin size={18} color="#16a34a" />
-            <span>Location Map: {previewRoom.name}</span>
+          {/* Title + step */}
+          <div style={{ position:'absolute', top:20, left:20, background:'rgba(255,255,255,0.95)', padding:'10px 18px', borderRadius:10, fontWeight:600, color:'#1f2937', fontSize:15, boxShadow:'0 4px 12px rgba(0,0,0,0.3)', display:'flex', alignItems:'center', gap:8 }}>
+            <FiMapPin size={17} color="#16a34a"/>
+            <span>{previewRoom.name}{dirImages.length > 1 ? ` — Step ${dirSlideIndex + 1}/${dirImages.length}` : ''}</span>
           </div>
 
           {/* Image */}
           <img
-            src={`http://localhost:5000${previewRoom.directionImage}`}
-            alt={`${previewRoom.name} location map`}
-            style={{
-              maxWidth: '90vw',
-              maxHeight: '85vh',
-              objectFit: 'contain',
-              borderRadius: 12,
-              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)',
-            }}
-            onClick={(e) => e.stopPropagation()}
+            src={dirImages[dirSlideIndex]}
+            alt={`${previewRoom.name} direction step ${dirSlideIndex + 1}`}
+            style={{ maxWidth:'88vw', maxHeight:'82vh', objectFit:'contain', borderRadius:12, boxShadow:'0 10px 40px rgba(0,0,0,0.5)' }}
+            onClick={e => e.stopPropagation()}
           />
 
-          {/* Download Button */}
-          <a
-            href={`http://localhost:5000${previewRoom.directionImage}`}
-            download
-            style={{
-              position: 'absolute',
-              bottom: 30,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              padding: '14px 28px',
-              background: '#16a34a',
-              color: 'white',
-              border: 'none',
-              borderRadius: 10,
-              fontWeight: 600,
-              textDecoration: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              boxShadow: '0 4px 12px rgba(22, 163, 74, 0.4)',
-              cursor: 'pointer',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <FiMapPin size={16} />
-            Download Map
+          {/* Prev / Next in lightbox */}
+          {dirImages.length > 1 && (
+            <>
+              <button onClick={e => { e.stopPropagation(); goDirSlide(-1); }}
+                style={{ position:'absolute', left:16, top:'50%', transform:'translateY(-50%)', width:48, height:48, borderRadius:'50%', border:'none', background:'rgba(255,255,255,0.18)', color:'#fff', fontSize:24, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10001, opacity: dirSlideIndex===0?0.4:1 }}>‹</button>
+              <button onClick={e => { e.stopPropagation(); goDirSlide(1); }}
+                style={{ position:'absolute', right:16, top:'50%', transform:'translateY(-50%)', width:48, height:48, borderRadius:'50%', border:'none', background:'rgba(255,255,255,0.18)', color:'#fff', fontSize:24, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10001, opacity: dirSlideIndex===dirImages.length-1?0.4:1 }}>›</button>
+            </>
+          )}
+
+          {/* Dots in lightbox */}
+          {dirImages.length > 1 && (
+            <div style={{ position:'absolute', bottom:80, left:'50%', transform:'translateX(-50%)', display:'flex', gap:8 }}>
+              {dirImages.map((_, i) => (
+                <button key={i} onClick={e => { e.stopPropagation(); goDirSlide(i - dirSlideIndex); }}
+                  style={{ width: i===dirSlideIndex?24:8, height:8, borderRadius:4, border:'none', background: i===dirSlideIndex?'#fff':'rgba(255,255,255,0.4)', cursor:'pointer', padding:0, transition:'all 0.3s' }}/>
+              ))}
+            </div>
+          )}
+
+          {/* Download current image */}
+          <a href={dirImages[dirSlideIndex]} download onClick={e => e.stopPropagation()}
+            style={{ position:'absolute', bottom:24, left:'50%', transform:'translateX(-50%)', padding:'12px 24px', background:'#16a34a', color:'white', border:'none', borderRadius:10, fontWeight:600, textDecoration:'none', display:'flex', alignItems:'center', gap:8, boxShadow:'0 4px 12px rgba(22,163,74,0.4)', cursor:'pointer', fontSize:14 }}>
+            <FiMapPin size={15}/>
+            {dirImages.length > 1 ? `Download Step ${dirSlideIndex + 1}` : 'Download Map'}
           </a>
         </div>
       )}
 
-        <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}} @keyframes dotBounce{0%,80%,100%{transform:translateY(0);opacity:0.6}40%{transform:translateY(-8px);opacity:1}} @keyframes iconPop{from{transform:scale(0) rotate(-15deg);opacity:0}to{transform:scale(1) rotate(0deg);opacity:1}}`}</style>
+        <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}} @keyframes dotBounce{0%,80%,100%{transform:translateY(0);opacity:0.6}40%{transform:translateY(-8px);opacity:1}} @keyframes iconPop{from{transform:scale(0) rotate(-15deg);opacity:0}to{transform:scale(1) rotate(0deg);opacity:1}} @keyframes hm-dir-progress{from{width:0%}to{width:100%}} @keyframes hm-fd{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}`}</style>
     </>
   );
 };

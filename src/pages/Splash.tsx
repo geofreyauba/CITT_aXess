@@ -20,7 +20,7 @@ const Splash: React.FC = () => {
   return (
     <div style={{
       minHeight: '100vh', width: '100vw',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: '#1a2332',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       position: 'relative', overflow: 'hidden',
     }}>

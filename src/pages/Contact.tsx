@@ -71,7 +71,7 @@ const Contact: React.FC = () => {
     <div style={{ minHeight: '100vh', background: '#f9fafb' }}>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: '#1a2332',
         padding: '60px 20px',
         color: 'white',
         position: 'relative',
@@ -156,7 +156,7 @@ const Contact: React.FC = () => {
                   width: 48,
                   height: 48,
                   borderRadius: 12,
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  background: '#1a2332',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -170,7 +170,7 @@ const Contact: React.FC = () => {
                     Email Address
                   </h3>
                   <a href="mailto:info@axess.bleca.ac.tz" style={{
-                    color: '#6366f1',
+                    color: '#1e3a5f',
                     textDecoration: 'none',
                     fontSize: 14,
                   }}>
@@ -196,7 +196,7 @@ const Contact: React.FC = () => {
                   width: 48,
                   height: 48,
                   borderRadius: 12,
-                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  background: '#10b981',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -210,7 +210,7 @@ const Contact: React.FC = () => {
                     Phone Number
                   </h3>
                   <a href="tel:+255123456789" style={{
-                    color: '#6366f1',
+                    color: '#1e3a5f',
                     textDecoration: 'none',
                     fontSize: 14,
                     display: 'block',
@@ -218,7 +218,7 @@ const Contact: React.FC = () => {
                     +255 123 456 789
                   </a>
                   <a href="tel:+255987654321" style={{
-                    color: '#6366f1',
+                    color: '#1e3a5f',
                     textDecoration: 'none',
                     fontSize: 14,
                     display: 'block',
@@ -245,7 +245,7 @@ const Contact: React.FC = () => {
                   width: 48,
                   height: 48,
                   borderRadius: 12,
-                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  background: '#f59e0b',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -280,7 +280,7 @@ const Contact: React.FC = () => {
                   width: 48,
                   height: 48,
                   borderRadius: 12,
-                  background: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+                  background: '#ec4899',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -434,13 +434,13 @@ const Contact: React.FC = () => {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
-                  placeholder="John Doe"
+                  placeholder="creations consolidated"
                   style={{
                     width: '100%', padding: '12px 16px',
                     border: '2px solid #e5e7eb', borderRadius: 10,
                     fontSize: 15, boxSizing: 'border-box', outline: 'none', transition: 'border 0.2s',
                   }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = '#6366f1'}
+                  onFocus={(e) => e.currentTarget.style.borderColor = '#1e3a5f'}
                   onBlur={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
                 />
               </div>
@@ -457,13 +457,13 @@ const Contact: React.FC = () => {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required
-                  placeholder="john@example.com"
+                  placeholder="creations14@example.com"
                   style={{
                     width: '100%', padding: '12px 16px',
                     border: '2px solid #e5e7eb', borderRadius: 10,
                     fontSize: 15, boxSizing: 'border-box', outline: 'none',
                   }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = '#6366f1'}
+                  onFocus={(e) => e.currentTarget.style.borderColor = '#1e3a5f'}
                   onBlur={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
                 />
               </div>
@@ -485,7 +485,7 @@ const Contact: React.FC = () => {
                     border: '2px solid #e5e7eb', borderRadius: 10,
                     fontSize: 15, boxSizing: 'border-box', outline: 'none',
                   }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = '#6366f1'}
+                  onFocus={(e) => e.currentTarget.style.borderColor = '#1e3a5f'}
                   onBlur={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
                 />
               </div>
@@ -509,7 +509,7 @@ const Contact: React.FC = () => {
                     fontSize: 15, boxSizing: 'border-box', resize: 'vertical',
                     fontFamily: 'inherit', outline: 'none',
                   }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = '#6366f1'}
+                  onFocus={(e) => e.currentTarget.style.borderColor = '#1e3a5f'}
                   onBlur={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
                 />
               </div>
@@ -521,9 +521,7 @@ const Contact: React.FC = () => {
                 style={{
                   width: '100%',
                   padding: '14px 24px',
-                  background: status === 'sending'
-                    ? 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)'
-                    : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  background: status === 'sending' ? '#9ca3af' : '#1e3a5f',
                   color: 'white',
                   border: 'none',
                   borderRadius: 10,
@@ -565,7 +563,7 @@ const Contact: React.FC = () => {
               {/* Setup hint — shown only before first successful send */}
               {status !== 'success' && (
                 <p style={{ fontSize: 11.5, color: '#9ca3af', textAlign: 'center', marginTop: 12, lineHeight: 1.5 }}>
-                  📧 Powered by <a href="https://www.emailjs.com" target="_blank" rel="noopener noreferrer" style={{ color: '#6366f1' }}>EmailJS</a> · Messages are delivered directly to our inbox
+                  📧 Powered by <a href="https://www.emailjs.com" target="_blank" rel="noopener noreferrer" style={{ color: '#1e3a5f' }}>EmailJS</a> · Messages are delivered directly to our inbox
                 </p>
               )}
             </form>

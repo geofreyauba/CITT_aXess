@@ -289,6 +289,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const [membership,      setMembership]      = useState('');
   const [userRole,        setUserRole]        = useState('');
   const [isAdmin,         setIsAdmin]         = useState(false);
+  const [isGuard,         setIsGuard]         = useState(false);
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [adminName,       setAdminName]       = useState('');
   const [profilePic,      setProfilePic]      = useState('');
@@ -322,6 +323,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           const role = formatRole(u.role || 'user');
           setUserRole(role);
           setIsAdmin(u.role === 'admin');
+          setIsGuard(u.role === 'guard');
           if (impersonating && u.impersonatedBy) setAdminName(u.impersonatedBy);
         }
       } catch {}
@@ -341,7 +343,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   }, []);
 
   const fetchNotifications = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!isAdmin && !isGuard) return;
     try {
       setNotifLoading(true);
       const [pending, all] = await Promise.all([
@@ -372,14 +374,14 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     } catch { } finally {
       setNotifLoading(false);
     }
-  }, [isAdmin]);
+  }, [isAdmin, isGuard]);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdmin && !isGuard) return;
     fetchNotifications();
     const t = setInterval(fetchNotifications, 60_000);
     return () => clearInterval(t);
-  }, [isAdmin, fetchNotifications]);
+  }, [isAdmin, isGuard, fetchNotifications]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -497,7 +499,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         {/* ── RIGHT: bell + welcome + avatar ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', position: 'relative' }}>
 
-          {isAdmin && (
+          {(isAdmin || isGuard) && (
             <div ref={notifRef} style={{ position: 'relative' }}>
               <BellIcon
                 count={notifItems.length}
